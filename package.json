@@ -12,8 +12,9 @@
     "start": "tsx server/index.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "format": "prettier --write src shared server tests public/*.js *.ts *.json",
-    "format:check": "prettier --check src shared server tests public/*.js *.ts *.json"
+    "docs:gallery": "node scripts/build-readme-gallery.mjs",
+    "format": "prettier --write src shared server tests scripts public/*.js *.ts *.json",
+    "format:check": "prettier --check src shared server tests scripts public/*.js *.ts *.json"
   },
   "dependencies": {
     "express": "^5.1.0",

@@ -970,7 +970,7 @@ export default function App() {
                           <>
                             自定义服务须由部署者允许此 HTTPS 域名。
                             <a
-                              href="https://github.com/BUG423/ai-lover#部署"
+                              href="https://github.com/BUG423/ai-lover#生产运行"
                               target="_blank"
                               rel="noreferrer"
                             >
