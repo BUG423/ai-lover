@@ -156,7 +156,24 @@ export default function App() {
       behavior: app.busy.chat ? 'auto' : 'smooth',
       block: 'end',
     });
-  }, [app.messages, app.busy.chat, app.activeId]);
+  }, [app.messages, app.busy.chat, app.activeId, mobileChat, page]);
+  useEffect(() => {
+    let frame = 0;
+    const revealLatest = () => {
+      if (document.activeElement !== composerRef.current) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        messageEnd.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      });
+    };
+    window.addEventListener('resize', revealLatest);
+    window.visualViewport?.addEventListener('resize', revealLatest);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', revealLatest);
+      window.visualViewport?.removeEventListener('resize', revealLatest);
+    };
+  }, []);
   useEffect(() => {
     setComposer('');
     setShowMore(false);

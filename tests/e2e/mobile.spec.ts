@@ -1,5 +1,10 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 
+const REPLY =
+  '我在听，慢慢说。今天能把这些事情撑下来已经不容易了，先给自己一点休息的时间。' +
+  '可以喝口水，靠在舒服的地方，把肩膀放松下来。你不用一下子把所有事情都讲清楚，' +
+  '从最想说的那件小事开始就好。就算暂时不想说话，我们也可以安静地待一会儿。';
+
 async function tapNav(page: Page, label: string) {
   await page
     .getByRole('navigation', { name: '手机主导航' })
@@ -56,7 +61,7 @@ for (const viewport of [
       chatBody = route.request().postDataJSON();
       return route.fulfill({
         contentType: 'text/event-stream',
-        body: 'data: {"type":"delta","text":"我在听，"}\n\ndata: {"type":"delta","text":"慢慢说。"}\n\ndata: {"type":"done","firstTokenMs":20,"totalMs":30}\n\n',
+        body: `data: ${JSON.stringify({ type: 'delta', text: REPLY })}\n\ndata: {"type":"done","firstTokenMs":20,"totalMs":30}\n\n`,
       });
     });
 
@@ -104,13 +109,34 @@ for (const viewport of [
     await reachable(page, send);
     await send.tap();
     const conversation = page.getByRole('region', { name: '与阿狸的会话' });
-    await expect(conversation.getByText('我在听，慢慢说。', { exact: true })).toBeVisible();
+    await expect(conversation.getByText(REPLY, { exact: true })).toBeVisible();
     expect(chatBody?.companion).toMatchObject({
       name: '阿狸',
       gender: 'animal',
       stage: 'divorced',
     });
     expect(chatBody?.messages).toEqual([{ role: 'user', content: '今天有点累，想和你聊聊' }]);
+    // Android's keyboard resizes the WebView: keep the latest reply above the composer.
+    await composer.focus();
+    await page.setViewportSize({ width: viewport.width, height: 465 });
+    expect(
+      await page
+        .locator('.messages-scroll')
+        .evaluate((node) => node.scrollHeight > node.clientHeight),
+    ).toBe(true);
+    await expect
+      .poll(() =>
+        page.locator('.messages-scroll').evaluate((node) => {
+          const bubble = node.querySelector('.message-row:last-child .message-bubble');
+          return Boolean(
+            bubble &&
+            bubble.getBoundingClientRect().bottom <= node.getBoundingClientRect().bottom + 1,
+          );
+        }),
+      )
+      .toBe(true);
+    await reachable(page, send);
+    await page.setViewportSize(viewport);
     await noOverflow(page);
     await page.getByRole('button', { name: '返回聊天列表' }).tap();
     await expect(page.getByRole('region', { name: '聊天列表' })).toBeVisible();
@@ -121,9 +147,7 @@ for (const viewport of [
       .getByRole('button', { name: /^阿狸/ })
       .tap();
     await expect(
-      page
-        .getByRole('region', { name: '与阿狸的会话' })
-        .getByText('我在听，慢慢说。', { exact: true }),
+      page.getByRole('region', { name: '与阿狸的会话' }).getByText(REPLY, { exact: true }),
     ).toBeVisible();
     expect(errors).toEqual([]);
   });

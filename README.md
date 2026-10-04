@@ -30,13 +30,21 @@
 
 ## 界面预览
 
+### 安卓真机 · OPPO A32
+
+以下为 APK 在 OPPO A32（Android 11）上的真实截屏，聊天使用小米 MiMo 的实际回复。应用直接连接模型，关闭电脑服务后也可使用。
+
+[![OPPO A32 安卓真机：真实聊天、创建对象、通讯录、模型设置](docs/screenshots/oppo-gallery.png)](docs/screenshots/oppo-gallery.png)
+
+[聊天原图](docs/screenshots/oppo-chat.png) · [创建对象](docs/screenshots/oppo-create.png) · [通讯录](docs/screenshots/oppo-contacts.png) · [模型设置](docs/screenshots/oppo-settings.png) · [键盘弹出实测](docs/screenshots/oppo-keyboard.png)
+
 ### 电脑端
 
 会话列表和聊天并排显示；左侧切换聊天、通讯录与设置。
 
 [![电脑端聊天界面](docs/screenshots/chat.png)](docs/screenshots/chat.png)
 
-### 手机端
+### 手机网页预览
 
 底部导航连接聊天、通讯录和设置；点开对象后进入单页对话，顶部返回列表。创建和设置表单可在手机上滚动操作。
 
@@ -49,7 +57,7 @@
 | 👥 通讯录   | 查找对象、查看资料、编辑设定、开始对话 | [手机通讯录](docs/screenshots/mobile-contacts.png) |
 | ⚙️ 设置     | 填写 Key、选择模型、测试并保存连接     | [手机设置](docs/screenshots/mobile-settings.png)   |
 
-以上为应用实际页面的布局预览，手机截图使用浏览器触摸设备模拟；安卓安装包与真机测试进度见[安卓交付记录](docs/android.md)。
+本节的手机网页截图使用浏览器触摸设备模拟；上方 OPPO 截图来自安装的安卓应用。详细结果见[安卓交付记录](docs/android.md)。
 
 <details>
 <summary>展开查看电脑端设置</summary>
@@ -60,7 +68,7 @@
 
 ## 手机使用
 
-**Android 使用 APK 安装，直接从桌面「知心」图标启动。** 下载 GitHub Actions 的 `ai-lover-android-debug` 构建产物并解压，打开 `app-debug.apk` 安装；首次安装按系统提示允许该来源。本轮测试包也已传入 OPPO 的「下载」目录。当前是调试签名测试包，正式分发需配置自己的发布签名。
+**Android 使用 APK 安装，直接从桌面「知心」图标启动。** 下载 GitHub Actions 的 `ai-lover-android-debug` 构建产物并解压，打开 `app-debug.apk` 安装；首次安装按系统提示允许该来源。已在 OPPO A32 安装并配置默认 MiMo，可直接打开聊天。若 ColorOS 拦截 ADB 安装，请通过「文件管理 → 手机存储 → Download」打开 APK，按系统流程安装。当前是调试签名测试包，正式分发需配置自己的发布签名。
 
 [下载最新安卓构建产物](https://github.com/BUG423/ai-lover/actions/workflows/ci.yml) · [构建、安装与 OPPO 测试记录](docs/android.md)
 
@@ -130,9 +138,9 @@ flowchart LR
 | 验证层级            | 检查内容                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------ |
 | 🧪 单元与服务测试   | 154 项：身份与提示词、上下文、流式、超时、取消、密钥与地址校验，以及原生桥接协议                       |
-| 🤖 安卓原生测试     | 8 项 JVM 回归；APK 已构建、签名及传输校验通过；真机安装状态见安卓记录                                  |
+| 🤖 安卓原生测试     | 8 项 JVM 回归；OPPO A32 已安装，真实模型读取、连接、聊天、对象编辑和重启恢复通过；导入真机验证待完成 |
 | 🖥️ 基础浏览器回归   | 对象管理、API 设置、加密恢复、备份、独立上下文、错误重试、长对话与状态竞争                             |
-| 📱 手机触摸冒烟测试 | 3 条流程通过：320 / 390 / 412 像素宽度，覆盖导航、创建、设置、聊天和刷新恢复；检查水平溢出与操作可见性 |
+| 📱 手机触摸冒烟测试 | 3 条流程通过：320 / 390 / 412 像素宽度，覆盖导航、创建、设置、聊天、键盘高度变化和刷新恢复 |
 | 📦 生产启动与 PWA   | Node 生产页面、健康接口、API 404、静态资源缓存与离线页面恢复                                           |
 | ✅ GitHub Actions   | 每次推送执行格式检查、单元测试、生产构建及桌面/手机浏览器测试                                          |
 
@@ -151,7 +159,7 @@ npm run test:e2e
 npm run test:e2e -- --project=mobile-chromium
 ```
 
-[查看最新自动测试结果](https://github.com/BUG423/ai-lover/actions/workflows/ci.yml) · [冒烟测试记录](docs/smoke-tests.md) · [安卓测试记录](docs/android.md)。自动化浏览器测试使用模拟响应；另已用用户本机 Key 验证真实 MiMo 网关：一次完整角色聊天首正文约 1.8 秒、总耗时约 7.2 秒，另一次触发首正文超时。这是样本记录，不是延迟承诺；OPPO 原生聊天仍须完成安装后实测。
+[查看最新自动测试结果](https://github.com/BUG423/ai-lover/actions/workflows/ci.yml) · [冒烟测试记录](docs/smoke-tests.md) · [安卓测试记录](docs/android.md)。浏览器回归使用模拟响应；OPPO 原生 MiMo 实测三轮聊天首正文约 0.9 / 1.2 / 16.3 秒，供应商延迟有波动，不能作为稳定速度承诺。备份生成与无 Key 检查通过；系统文件选择器中的导入操作本轮未完成，尚未验证完整真机恢复。
 
 ## 生产运行
 
