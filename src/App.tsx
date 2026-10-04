@@ -110,13 +110,12 @@ export default function App() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     let active = true;
-    const listener = NativeApp.addListener('backButton', () => nativeBack.current());
-    void listener.then((handle) => {
-      if (!active) void handle.remove();
+    const listener = NativeApp.addListener('backButton', () => {
+      if (active) nativeBack.current();
     });
     return () => {
       active = false;
-      void listener.then((handle) => handle.remove());
+      void listener.then((handle) => handle.remove()).catch(() => undefined);
     };
   }, []);
   const companion = app.activeCompanion;
