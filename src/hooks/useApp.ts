@@ -11,6 +11,11 @@ import {
 import { dataSchema, draftSchema, settingsSchema, validationError } from '../lib/validation';
 import { consumeEvents } from '../lib/sse';
 import { recentMessages } from '../../shared/context';
+import { mimoEndpoint } from '../../shared/providers';
+import { Capacitor } from '@capacitor/core';
+import { nativePost } from '../lib/nativeGateway';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 type Notice = { kind: 'success' | 'error' | 'info'; message: string };
 async function readError(response: Response): Promise<string> {
@@ -22,12 +27,14 @@ async function readError(response: Response): Promise<string> {
   }
 }
 async function post(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
-  const response = await fetch(path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal,
-  });
+  const response = Capacitor.isNativePlatform()
+    ? await nativePost(path, body, signal)
+    : await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      });
   if (!response.ok) throw new Error(await readError(response));
   return response;
 }
@@ -56,6 +63,7 @@ export default function useApp() {
   const saving = useRef(false);
   const auxiliaryControllers = useRef(new Set<AbortController>());
   const operationEpoch = useRef(0);
+  const serviceEpoch = useRef(0);
   const modelsLoading = useRef(false);
   const testing = useRef(false);
 
@@ -312,6 +320,7 @@ export default function useApp() {
     try {
       const next = settingsSchema.parse(input);
       stopGeneration();
+      clearModels();
       const encrypted = await persistSettings(next, () => epoch === operationEpoch.current);
       if (epoch !== operationEpoch.current) return;
       settingsRef.current = next;
@@ -329,11 +338,17 @@ export default function useApp() {
       saving.current = false;
     }
   }
+  function clearModels() {
+    serviceEpoch.current++;
+    for (const controller of auxiliaryControllers.current) controller.abort();
+    setModels([]);
+  }
   async function serviceAction(kind: 'models' | 'test', input = settingsRef.current) {
     const flag = kind === 'models' ? modelsLoading : testing;
     if (flag.current) return;
     flag.current = true;
     const epoch = operationEpoch.current;
+    const requestEpoch = serviceEpoch.current;
     const controller = new AbortController();
     auxiliaryControllers.current.add(controller);
     const timeout = window.setTimeout(() => controller.abort(), 35000);
@@ -344,17 +359,17 @@ export default function useApp() {
       const result = await (
         await post(`/api/${kind}`, { settings: next }, controller.signal)
       ).json();
-      if (epoch !== operationEpoch.current) return;
+      if (epoch !== operationEpoch.current || requestEpoch !== serviceEpoch.current) return;
       if (kind === 'models') {
         setModels(result.models);
         setNotice({ kind: 'success', message: `已读取 ${result.models.length} 个可用模型` });
       } else
         setNotice({
           kind: 'success',
-          message: `连接成功，模型已实际响应（${(result.latencyMs / 1000).toFixed(1)} 秒）。测试会产生少量调用费用。`,
+          message: `连接成功，模型已实际响应（${(result.latencyMs / 1000).toFixed(1)} 秒）。${next.provider === 'mimo' && mimoEndpoint(next.baseUrl)?.mode === 'token-plan' ? '本次测试消耗少量 Token Plan 配额。' : '本次测试产生少量调用费用。'}`,
         });
     } catch (error) {
-      if (epoch === operationEpoch.current)
+      if (epoch === operationEpoch.current && requestEpoch === serviceEpoch.current)
         setNotice({
           kind: 'error',
           message: controller.signal.aborted ? '请求已超时，请稍后重试' : validationError(error),
@@ -366,10 +381,25 @@ export default function useApp() {
       setBusy((old) => ({ ...old, [kind]: false }));
     }
   }
-  function exportData() {
+  async function exportData() {
     const blob = new Blob([JSON.stringify(dataRef.current)], { type: 'application/json' });
     if (blob.size > 20 * 1024 * 1024) {
       setNotice({ kind: 'error', message: '备份超过 20 MB 上限，请减少不需要的记录后重试' });
+      return;
+    }
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const file = await Filesystem.writeFile({
+          path: `知心备份-${new Date().toISOString().slice(0, 10)}.json`,
+          data: await blob.text(),
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+        await Share.share({ title: '知心聊天备份', url: file.uri, dialogTitle: '保存或分享备份' });
+        setNotice({ kind: 'success', message: '备份已生成，包含对象和聊天记录，不包含 API Key' });
+      } catch (error) {
+        setNotice({ kind: 'error', message: validationError(error) });
+      }
       return;
     }
     const url = URL.createObjectURL(blob);
@@ -381,9 +411,11 @@ export default function useApp() {
     setNotice({ kind: 'success', message: '备份已导出，包含对象和聊天记录，不包含 API Key' });
   }
   async function importData(file: File) {
+    const epoch = operationEpoch.current;
     try {
       if (file.size > 20 * 1024 * 1024) throw new Error('备份文件不能超过 20 MB');
       const imported = dataSchema.parse(JSON.parse(await file.text()));
+      if (epoch !== operationEpoch.current) return;
       for (const messages of Object.values(imported.conversations))
         for (const m of messages) if (m.status === 'streaming') m.status = 'stopped';
       // Verify storage succeeds before replacing the current in-memory data.
@@ -394,7 +426,8 @@ export default function useApp() {
       setLastMetrics(null);
       setNotice({ kind: 'success', message: '备份已导入，当前对象与聊天记录已替换' });
     } catch (error) {
-      setNotice({ kind: 'error', message: validationError(error) });
+      if (epoch === operationEpoch.current)
+        setNotice({ kind: 'error', message: validationError(error) });
     }
   }
   function clearHistory(id: string) {
@@ -444,6 +477,7 @@ export default function useApp() {
     saveSettings,
     testConnection: (input?: ApiSettings) => serviceAction('test', input),
     loadModels: (input?: ApiSettings) => serviceAction('models', input),
+    clearModels,
     exportData,
     importData,
     clearHistory,

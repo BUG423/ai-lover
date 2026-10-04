@@ -1,7 +1,77 @@
 import { test, expect, type Page } from '@playwright/test';
 import { dataSchema } from '../../src/lib/validation';
 
-const KEY = 'sk-e2e-test-only-not-a-real-api-key';
+const KEY = 'tp-e2e-test-only-not-a-real-api-key';
+
+test('restricts providers and isolates credentials, models and account types', async ({ page }) => {
+  let requests = 0;
+  await page.route('**/api/models', (route) => {
+    requests++;
+    return route.fulfill({ json: { models: ['mimo-v2.6-flash', 'mimo-v2.6-pro'] } });
+  });
+  await page.goto('/');
+  await navigate(page, '设置');
+  const providers = page.getByRole('group', { name: '模型服务商' });
+  await expect(providers.getByRole('button')).toHaveCount(3);
+  await expect(providers.getByRole('button', { name: /小米 MiMo/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  const key = page.getByRole('textbox', { name: 'API 密钥', exact: true });
+  await key.fill(KEY);
+  await page.getByRole('button', { name: '读取模型', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('已读取 2 个');
+  await expect(page.getByLabel(/对话模型/).locator('option')).toContainText([
+    'mimo-v2.6-flash',
+    'mimo-v2.6-pro',
+  ]);
+  await providers.getByRole('button', { name: /硅基流动 · 国内站/ }).click();
+  await expect(key).toHaveValue('');
+  await expect(page.getByLabel(/对话模型/).locator('option')).not.toContainText(['mimo-v2.6-pro']);
+  await key.fill(KEY);
+  await page.getByRole('button', { name: '读取模型', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('不能用于硅基流动');
+  expect(requests).toBe(1);
+  await providers.getByRole('button', { name: /小米 MiMo/ }).click();
+  await expect(key).toHaveValue('');
+  await page.getByRole('combobox', { name: /MiMo/ }).selectOption('https://api.xiaomimimo.com/v1');
+  await key.fill(KEY);
+  await page.getByRole('button', { name: '读取模型', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('套餐专用地址');
+  expect(requests).toBe(1);
+});
+
+test('clearing data discards a delayed backup import', async ({ page }) => {
+  await page.goto('/');
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('zhixin.data.v1')))
+    .not.toBeNull();
+  const backup = await page.evaluate(() => localStorage.getItem('zhixin.data.v1'));
+  await page.evaluate(() => {
+    const original = File.prototype.text;
+    File.prototype.text = async function () {
+      (window as unknown as Record<string, boolean>).importStarted = true;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const result = await original.call(this);
+      (window as unknown as Record<string, boolean>).importFinished = true;
+      return result;
+    };
+  });
+  await navigate(page, '设置');
+  await page.getByLabel('导入聊天数据文件').setInputFiles({
+    name: 'backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(backup!),
+  });
+  await page.getByRole('dialog').getByRole('button', { name: '导入并替换', exact: true }).click();
+  await page.waitForFunction(() => (window as unknown as Record<string, boolean>).importStarted);
+  await page.getByRole('button', { name: '清除所有数据', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: '清除所有数据', exact: true }).click();
+  await page.waitForFunction(() => (window as unknown as Record<string, boolean>).importFinished);
+  await expect(page.getByRole('status')).toContainText('已清除');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '有些话，想说给懂你的人听' })).toBeVisible();
+});
 async function navigate(page: Page, label: string) {
   await page
     .locator('nav:visible')
@@ -64,7 +134,7 @@ test('saves encrypted credentials, reads models, verifies the selected model and
   page,
 }) => {
   await page.route('**/api/models', (route) =>
-    route.fulfill({ json: { models: ['Qwen/Qwen3.5-9B', 'test/model'] } }),
+    route.fulfill({ json: { models: ['mimo-v2.6-flash', 'test/model'] } }),
   );
   let testedModel = '';
   await page.route('**/api/test', (route) => {

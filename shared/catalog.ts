@@ -161,10 +161,10 @@ export const STAGES: { id: Stage; label: string; description: string; instructio
 export const AVATARS = ['🌷', '🌙', '🍊', '🌲', '🐱', '🐶', '🦊', '🐻', '🌻', '🪐', '🦋', '☁️'];
 export const COLORS = ['rose', 'sage', 'lavender', 'peach', 'sky', 'sand'];
 export const DEFAULT_SETTINGS: ApiSettings = {
-  provider: 'siliconflow-international',
-  baseUrl: 'https://api.siliconflow.com/v1',
+  provider: 'mimo',
+  baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
   apiKey: '',
-  model: 'Qwen/Qwen3.5-9B',
+  model: 'mimo-v2.6-flash',
   temperature: 0.8,
   remember: true,
 };

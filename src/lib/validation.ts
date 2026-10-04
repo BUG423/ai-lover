@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AVATARS, COLORS, PERSONALITIES } from '../../shared/catalog';
+import { providerKeyError, validProviderBaseUrl } from '../../shared/providers';
 
 const gender = z.enum(['male', 'female', 'undefined', 'animal']);
 export const draftSchema = z
@@ -59,24 +60,33 @@ export const dataSchema = z
         ctx.addIssue({ code: 'custom', message: '消息编号不可重复' });
     }
   });
-export const settingsSchema = z.object({
-  provider: z.enum(['siliconflow', 'siliconflow-international', 'custom']),
-  baseUrl: z
-    .string()
-    .trim()
-    .url('请输入完整的 API 地址')
-    .max(300)
-    .refine((value) => {
-      const url = new URL(value);
-      return (
-        url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
-      );
-    }, 'API 地址必须使用 HTTPS，且不能包含账号、查询参数或片段'),
-  apiKey: z.string().trim().max(500, 'API Key 过长'),
-  model: z.string().trim().min(1, '请输入模型名称').max(150),
-  temperature: z.number().min(0).max(2),
-  remember: z.boolean(),
-});
+export const settingsSchema = z
+  .object({
+    provider: z.enum(['mimo', 'siliconflow', 'siliconflow-international']),
+    baseUrl: z
+      .string()
+      .trim()
+      .url('请输入完整的 API 地址')
+      .max(300)
+      .refine((value) => {
+        const url = new URL(value);
+        return (
+          url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash
+        );
+      }, 'API 地址必须使用 HTTPS，且不能包含账号、查询参数或片段'),
+    apiKey: z.string().trim().max(500, 'API Key 过长'),
+    model: z.string().trim().min(1, '请输入模型名称').max(150),
+    temperature: z.number().min(0).max(2),
+    remember: z.boolean(),
+  })
+  .refine((settings) => validProviderBaseUrl(settings.provider, settings.baseUrl), {
+    message: '只支持小米 MiMo 和硅基流动的官方接口',
+    path: ['baseUrl'],
+  })
+  .superRefine((settings, ctx) => {
+    const message = providerKeyError(settings);
+    if (message) ctx.addIssue({ code: 'custom', message, path: ['apiKey'] });
+  });
 export function validationError(error: unknown): string {
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? '资料格式不正确';
   return error instanceof Error ? error.message : '操作失败，请稍后重试';

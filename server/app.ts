@@ -12,19 +12,19 @@ import {
   apiBaseUrl,
   completionBody,
   completionEndError,
+  connectionTestTokens,
   parseCompletionEvent,
   parseSSE,
+  providerHeaders,
   readBoundedText,
   requestDeadline,
   requireUpstreamSuccess,
   scrubError,
-  trustedOrigins,
 } from './upstream';
 import type { StreamEvent } from '../shared/types';
 
 export interface AppOptions {
   fetch?: typeof globalThis.fetch;
-  allowedOrigins?: Set<string>;
   firstTokenTimeoutMs?: number;
   totalTimeoutMs?: number;
   rateLimit?: boolean;
@@ -50,7 +50,6 @@ function clientCancellation(req: Request, res: Response) {
 export function createApp(options: AppOptions = {}) {
   const app = express();
   const fetchUpstream = options.fetch ?? globalThis.fetch;
-  const allowlist = options.allowedOrigins ?? trustedOrigins();
   const staticDir = options.staticDir === false ? false : (options.staticDir ?? resolve('dist'));
   app.disable('x-powered-by');
   app.use(helmet({ referrerPolicy: { policy: 'no-referrer' } }));
@@ -90,11 +89,11 @@ export function createApp(options: AppOptions = {}) {
       options.totalTimeoutMs,
     );
     try {
-      const base = apiBaseUrl(settings.baseUrl, allowlist);
+      const base = apiBaseUrl(settings.baseUrl, settings.provider);
       const response = await fetchUpstream(
-        `${base}/models${settings.provider === 'custom' ? '' : '?sub_type=chat'}`,
+        `${base}/models${settings.provider === 'mimo' ? '' : '?sub_type=chat'}`,
         {
-          headers: { Authorization: `Bearer ${settings.apiKey}`, Accept: 'application/json' },
+          headers: { ...providerHeaders(settings), Accept: 'application/json' },
           signal: deadline.signal,
           redirect: 'error',
         },
@@ -112,7 +111,9 @@ export function createApp(options: AppOptions = {}) {
                 item &&
                 typeof item === 'object' &&
                 typeof item.id === 'string' &&
-                item.id.length <= 150,
+                item.id.trim().length > 0 &&
+                item.id.length <= 150 &&
+                (settings.provider !== 'mimo' || !/-(asr|tts)(-|$)/iu.test(item.id)),
               ),
             )
             .map((item) => item.id),
@@ -143,11 +144,11 @@ export function createApp(options: AppOptions = {}) {
     );
     const started = performance.now();
     try {
-      const base = apiBaseUrl(settings.baseUrl, allowlist);
+      const base = apiBaseUrl(settings.baseUrl, settings.provider);
       const response = await fetchUpstream(`${base}/chat/completions`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${settings.apiKey}`,
+          ...providerHeaders(settings),
           'Content-Type': 'application/json',
           Accept: 'application/json',
         },
@@ -156,7 +157,7 @@ export function createApp(options: AppOptions = {}) {
             settings,
             [{ role: 'user', content: '仅回复“好”。不要解释。' }],
             false,
-            16,
+            connectionTestTokens(settings),
           ),
         ),
         signal: deadline.signal,
@@ -180,7 +181,7 @@ export function createApp(options: AppOptions = {}) {
       const content = choice?.message?.content ?? choice?.message?.refusal;
       if (choice?.finish_reason === 'length')
         throw new ApiError(
-          '连接测试的 16 token 输出预算已用尽，推理模型可能尚未生成可显示文本；请尝试快速模型',
+          `连接测试的 ${connectionTestTokens(settings)} token 输出预算已用尽，推理模型可能尚未生成可显示文本；请尝试快速模型`,
         );
       const toolCalls = choice?.message?.tool_calls;
       const hasToolCalls = Array.isArray(toolCalls) ? toolCalls.length > 0 : Boolean(toolCalls);
@@ -210,7 +211,7 @@ export function createApp(options: AppOptions = {}) {
     const { settings, companion, messages } = parsed.data;
     let base: string;
     try {
-      base = apiBaseUrl(settings.baseUrl, allowlist);
+      base = apiBaseUrl(settings.baseUrl, settings.provider);
     } catch (error) {
       sendJsonError(res, error, settings.apiKey);
       return;
@@ -243,7 +244,7 @@ export function createApp(options: AppOptions = {}) {
       const response = await fetchUpstream(`${base}/chat/completions`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${settings.apiKey}`,
+          ...providerHeaders(settings),
           'Content-Type': 'application/json',
           Accept: 'text/event-stream',
         },

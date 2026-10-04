@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as NativeApp } from '@capacitor/app';
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -35,7 +37,8 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import { DEFAULT_SETTINGS, GENDERS, PERSONALITIES, STAGES } from '../shared/catalog';
+import { GENDERS, PERSONALITIES, STAGES } from '../shared/catalog';
+import { MIMO_ENDPOINTS, PROVIDERS } from '../shared/providers';
 import type { ApiSettings, Companion, CompanionDraft } from '../shared/types';
 import useApp from './hooks/useApp';
 import Avatar from './components/Avatar';
@@ -48,39 +51,6 @@ const NAVIGATION = [
   { id: 'chats' as Page, label: '聊天', icon: MessageCircle },
   { id: 'contacts' as Page, label: '通讯录', icon: Users },
   { id: 'settings' as Page, label: '设置', icon: Settings },
-];
-const PROVIDERS: {
-  id: ApiSettings['provider'];
-  name: string;
-  description: string;
-  url: string;
-  console: string;
-  guide: string;
-}[] = [
-  {
-    id: 'siliconflow-international',
-    name: '硅基流动 · 国际站',
-    description: '默认推荐 · 多种开源模型',
-    url: 'https://api.siliconflow.com/v1',
-    console: 'https://cloud.siliconflow.com',
-    guide: 'https://docs.siliconflow.com/en/userguide/quickstart',
-  },
-  {
-    id: 'siliconflow',
-    name: '硅基流动 · 国内站',
-    description: '国内访问更便利',
-    url: 'https://api.siliconflow.cn/v1',
-    console: 'https://cloud.siliconflow.cn',
-    guide: 'https://api-docs.siliconflow.cn/docs/userguide/quickstart',
-  },
-  {
-    id: 'custom',
-    name: '自定义服务',
-    description: '兼容 OpenAI 接口的服务',
-    url: '',
-    console: '',
-    guide: '',
-  },
 ];
 const CONVERSATION_STARTERS = [
   { emoji: '☕', label: '分享今天的小事', text: '今天发生了一件小事，想跟你聊聊。' },
@@ -124,13 +94,51 @@ export default function App() {
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messageEnd = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const nativeBack = useRef(() => {});
+  nativeBack.current = () => {
+    if (confirmation) setConfirmation(null);
+    else if (editor) setEditor(null);
+    else if (profile) setProfile(null);
+    else if (showMore) setShowMore(false);
+    else if (showEmoji) setShowEmoji(false);
+    else if (mobileChat) {
+      app.stopGeneration();
+      setMobileChat(false);
+    } else if (page !== 'chats') setPage('chats');
+    else void NativeApp.minimizeApp();
+  };
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    const listener = NativeApp.addListener('backButton', () => nativeBack.current());
+    void listener.then((handle) => {
+      if (!active) void handle.remove();
+    });
+    return () => {
+      active = false;
+      void listener.then((handle) => handle.remove());
+    };
+  }, []);
   const companion = app.activeCompanion;
   const hasKey = Boolean(app.settings.apiKey.trim());
-  const provider = PROVIDERS.find((item) => item.id === settings.provider)!;
+  const provider = PROVIDERS.find((item) => item.id === settings.provider) ?? PROVIDERS[0];
+  const isMiMo = provider.id === 'mimo';
+  const mimoEndpoint =
+    MIMO_ENDPOINTS.find((endpoint) => endpoint.url === settings.baseUrl.replace(/\/$/, '')) ??
+    MIMO_ENDPOINTS[0];
+  const isTokenPlan = isMiMo && mimoEndpoint.mode === 'token-plan';
+  const providerConsole =
+    isMiMo && !isTokenPlan ? 'https://platform.xiaomimimo.com/console/api-keys' : provider.console;
+  const providerGuide =
+    isMiMo && !isTokenPlan
+      ? 'https://mimo.mi.com/docs/zh-CN/quick-start/summary/first-api-call'
+      : provider.guide;
+  const currentProviderConfigured =
+    hasKey &&
+    settings.provider === app.settings.provider &&
+    settings.baseUrl === app.settings.baseUrl;
   const modelOptions = Array.from(
-    new Set(
-      [DEFAULT_SETTINGS.model, app.settings.model, settings.model, ...app.models].filter(Boolean),
-    ),
+    new Set([provider.defaultModel, settings.model, ...app.models].filter(Boolean)),
   );
   const filteredCompanions = app.companions.filter((item) =>
     `${item.name} ${personalityLabel(item).join(' ')}`.toLowerCase().includes(search.toLowerCase()),
@@ -867,9 +875,9 @@ export default function App() {
                 </h1>
                 <p>连接你的模型，让每一句话都有回应。</p>
               </div>
-              <span className={`connection-badge ${hasKey ? 'configured' : ''}`}>
+              <span className={`connection-badge ${currentProviderConfigured ? 'configured' : ''}`}>
                 <span className="status-dot" />
-                {hasKey ? 'API 已配置' : '等待连接 API'}
+                {currentProviderConfigured ? 'API 已配置' : '等待连接 API'}
               </span>
             </header>
             <div className="settings-layout">
@@ -882,7 +890,13 @@ export default function App() {
                       </span>
                       <div>
                         <h2>模型与连接</h2>
-                        <p>使用你自己的 API 密钥，按供应商实际用量计费。</p>
+                        <p>
+                          {isTokenPlan
+                            ? '使用小米 MiMo Token Plan 专用密钥，按已开通的套餐额度使用。'
+                            : isMiMo
+                              ? '使用小米 MiMo 通用 API 密钥，按实际 token 用量计费。'
+                              : '使用硅基流动 API 密钥，按供应商实际用量计费。'}
+                        </p>
                       </div>
                     </div>
                     <fieldset className="provider-fieldset">
@@ -894,33 +908,79 @@ export default function App() {
                             type="button"
                             className={`provider-option ${settings.provider === item.id ? 'selected' : ''}`}
                             aria-pressed={settings.provider === item.id}
+                            disabled={app.busy.models || app.busy.test || saving}
                             onClick={() => {
+                              if (settings.provider === item.id) return;
+                              app.clearModels();
+                              setManualModel(false);
+                              setShowKey(false);
                               setSettings((current) => ({
                                 ...current,
                                 provider: item.id,
-                                baseUrl: item.url || current.baseUrl,
+                                baseUrl: item.url,
+                                model: item.defaultModel,
+                                apiKey: '',
                               }));
                             }}
                           >
                             <span>
-                              {item.id === 'custom' ? (
-                                <Settings size={16} />
-                              ) : (
-                                <span className="provider-symbol">S</span>
-                              )}
-                              <strong>{item.name}</strong>
+                              <span
+                                className={`provider-symbol ${item.id === 'mimo' ? 'provider-symbol-mimo' : ''}`}
+                              >
+                                {item.id === 'mimo' ? 'mi' : 'S'}
+                              </span>
+                              <strong>{item.id === 'mimo' ? '小米 MiMo' : item.name}</strong>
                               {settings.provider === item.id && <Check size={15} />}
                             </span>
-                            <small>{item.description}</small>
+                            <small>
+                              {item.id === 'mimo'
+                                ? settings.provider === 'mimo'
+                                  ? isTokenPlan
+                                    ? 'Token Plan · 按套餐额度'
+                                    : '通用 API · 按用量计费'
+                                  : 'Token Plan / 通用 API'
+                                : item.description}
+                            </small>
                           </button>
                         ))}
                       </div>
+                      <p className="provider-switch-note">
+                        切换服务商会清空当前密钥，请使用对应服务的密钥。
+                      </p>
                     </fieldset>
+                    {isMiMo && (
+                      <label className="field">
+                        <span>MiMo 账户类型与服务区域</span>
+                        <select
+                          aria-label="MiMo 账户类型与服务区域"
+                          value={settings.baseUrl || provider.url}
+                          disabled={app.busy.models || app.busy.test || saving}
+                          onChange={(event) => {
+                            app.clearModels();
+                            setManualModel(false);
+                            setShowKey(false);
+                            setSettings((current) => ({
+                              ...current,
+                              baseUrl: event.target.value,
+                              apiKey: '',
+                              model: provider.defaultModel,
+                            }));
+                          }}
+                        >
+                          {MIMO_ENDPOINTS.map((endpoint) => (
+                            <option key={endpoint.url} value={endpoint.url}>
+                              {endpoint.label}
+                            </option>
+                          ))}
+                        </select>
+                        <small>请与小米控制台的账户类型和区域保持一致；切换会清空当前密钥。</small>
+                      </label>
+                    )}
                     <label className="field">
                       <span>
                         API 密钥 <span className="required">*</span>
-                        {provider.console && (
-                          <a href={provider.console} target="_blank" rel="noreferrer">
+                        {providerConsole && (
+                          <a href={providerConsole} target="_blank" rel="noreferrer">
                             获取密钥
                             <ExternalLink size={12} />
                           </a>
@@ -933,7 +993,9 @@ export default function App() {
                           autoComplete="off"
                           spellCheck={false}
                           value={settings.apiKey}
-                          placeholder="sk-…"
+                          placeholder={
+                            isMiMo ? mimoEndpoint.keyPlaceholder : provider.keyPlaceholder
+                          }
                           onChange={(event) =>
                             setSettings({ ...settings, apiKey: event.target.value })
                           }
@@ -949,41 +1011,36 @@ export default function App() {
                           {showKey ? <EyeOff size={17} /> : <Eye size={17} />}
                         </button>
                       </div>
+                      {isMiMo && (
+                        <small>
+                          Token Plan 一般限编程场景；本应用仅在获小米授权时使用，普通账户请选择按量
+                          API。
+                        </small>
+                      )}
                     </label>
-                    <label className="field">
+                    <div className="field">
                       <span>
                         接口地址 <span className="legend-note">Base URL</span>
                       </span>
-                      <input
-                        type="url"
-                        value={settings.baseUrl}
-                        placeholder="https://api.example.com/v1"
-                        onChange={(event) =>
-                          setSettings({ ...settings, baseUrl: event.target.value })
-                        }
-                        required
-                        spellCheck={false}
-                      />
+                      <div className="provider-endpoint" aria-label="服务商接口地址">
+                        <ShieldCheck size={15} />
+                        <code>{settings.baseUrl || provider.url || '正在核验官方接口'}</code>
+                      </div>
                       <small>
-                        兼容 OpenAI 的聊天接口地址，通常以 /v1 结尾。
-                        {settings.provider === 'custom' && (
-                          <>
-                            自定义服务须由部署者允许此 HTTPS 域名。
-                            <a
-                              href="https://github.com/BUG423/ai-lover#生产运行"
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              查看部署说明
-                            </a>
-                          </>
-                        )}
+                        {isTokenPlan
+                          ? '使用所选区域的官方 Token Plan 专用接口。密钥须与账户类型一致。'
+                          : isMiMo
+                            ? '使用小米 MiMo 官方通用 API 接口，地址由服务商固定。'
+                            : '使用所选硅基流动站点的官方接口，地址由服务商固定。'}
                       </small>
-                    </label>
+                    </div>
                     <div className="model-field">
                       <label className="field">
                         <span>
-                          对话模型<span className="recommended-label">轻快优先</span>
+                          对话模型
+                          <span className="recommended-label">
+                            {isTokenPlan ? 'Token Plan' : isMiMo ? 'MiMo Flash' : '轻快优先'}
+                          </span>
                         </span>
                         <select
                           value={manualModel ? '__manual' : settings.model}
@@ -1022,23 +1079,42 @@ export default function App() {
                         <span>模型名称</span>
                         <input
                           value={settings.model}
-                          placeholder="例如：Qwen/Qwen3.5-9B"
+                          placeholder={
+                            provider.defaultModel
+                              ? `例如：${provider.defaultModel}`
+                              : '填写此服务商支持的模型名称'
+                          }
                           onChange={(event) =>
                             setSettings({ ...settings, model: event.target.value })
                           }
                           required
                         />
+                        <small>仅支持当前服务商可用的模型；建议先读取模型列表确认。</small>
                       </label>
                     )}
                     <p className="model-cost-note">
                       <Zap size={12} />
-                      国际站 Qwen3.5-9B 参考价：输入 $0.10 / 输出 $0.15 每百万 token。
+                      {isTokenPlan
+                        ? '套餐、可用模型和剩余额度请以小米 MiMo 控制台为准。'
+                        : isMiMo
+                          ? 'MiMo v2.6 Flash 参考价：输入 ¥1 / 输出 ¥2 每百万 token。'
+                          : settings.provider === 'siliconflow-international'
+                            ? '国际站 Qwen3.5-9B 参考价：输入 $0.10 / 输出 $0.15 每百万 token。'
+                            : '国内站模型按实际 token 用量计费，请在控制台查看所选模型价格。'}
                       <a
-                        href="https://www.siliconflow.com/pricing"
+                        href={
+                          isMiMo
+                            ? isTokenPlan
+                              ? providerConsole
+                              : 'https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go'
+                            : settings.provider === 'siliconflow-international'
+                              ? 'https://www.siliconflow.com/pricing'
+                              : providerConsole
+                        }
                         target="_blank"
                         rel="noreferrer"
                       >
-                        价格以官方为准
+                        {isTokenPlan ? '查看套餐' : '价格以官方为准'}
                         <ExternalLink size={11} />
                       </a>
                     </p>
@@ -1061,7 +1137,11 @@ export default function App() {
                         测试连接
                       </button>
                     </div>
-                    <p className="connection-cost-note">测试会实际调用所选模型，消耗少量 token。</p>
+                    <p className="connection-cost-note">
+                      {isTokenPlan
+                        ? '测试会实际调用所选模型，消耗少量套餐额度。'
+                        : '测试会实际调用所选模型，消耗少量 token 并产生调用费用。'}
+                    </p>
                   </section>
                   <section className="settings-card">
                     <div className="settings-card-heading">
@@ -1127,7 +1207,7 @@ export default function App() {
                     <div>
                       <h2>你的数据</h2>
                       <p>
-                        对象设定与聊天记录存储在当前浏览器；换设备不会自动同步，清理浏览器可能丢失，请定期备份。
+                        对象设定与聊天记录存储在当前设备；换设备不会自动同步，清除应用数据可能丢失，请定期备份。
                       </p>
                     </div>
                   </div>
@@ -1194,15 +1274,35 @@ export default function App() {
                     <li>
                       <span>1</span>
                       <div>
-                        <strong>创建服务商账号</strong>
-                        <p>前往硅基流动控制台注册。</p>
+                        <strong>
+                          {isTokenPlan
+                            ? '准备已授权的 Token Plan'
+                            : isMiMo
+                              ? '创建小米 MiMo 账号'
+                              : '创建硅基流动账号'}
+                        </strong>
+                        <p>
+                          {isTokenPlan
+                            ? '在小米 MiMo 平台确认授权、套餐和服务区域。'
+                            : isMiMo
+                              ? '前往小米 MiMo 平台，开通通用 API 服务。'
+                              : `前往${provider.name}控制台注册。`}
+                        </p>
                       </div>
                     </li>
                     <li>
                       <span>2</span>
                       <div>
-                        <strong>创建并复制 API 密钥</strong>
-                        <p>在控制台的「API 密钥」中创建。</p>
+                        <strong>
+                          {isTokenPlan ? '复制 Token Plan 专用密钥' : '创建并复制 API 密钥'}
+                        </strong>
+                        <p>
+                          {isTokenPlan
+                            ? '个人账户使用 tp- 密钥，团队账户使用 ttp- 密钥。'
+                            : isMiMo
+                              ? '创建普通 API 密钥（sk-…），确认账户余额。'
+                              : '在控制台的「API 密钥」中创建。'}
+                        </p>
                       </div>
                     </li>
                     <li>
@@ -1213,24 +1313,19 @@ export default function App() {
                       </div>
                     </li>
                   </ol>
-                  {provider.console && (
+                  {providerConsole && (
                     <a
                       className="button primary"
-                      href={provider.console}
+                      href={providerConsole}
                       target="_blank"
                       rel="noreferrer"
                     >
-                      打开服务商控制台
+                      {isMiMo ? '打开小米 MiMo 平台' : '打开硅基流动控制台'}
                       <ExternalLink size={14} />
                     </a>
                   )}
-                  {provider.guide && (
-                    <a
-                      className="help-guide"
-                      href={provider.guide}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                  {providerGuide && (
+                    <a className="help-guide" href={providerGuide} target="_blank" rel="noreferrer">
                       <BookOpen size={14} />
                       查看官方使用指南
                       <ArrowRight size={13} />
@@ -1241,7 +1336,9 @@ export default function App() {
                   <Leaf size={19} />
                   <h3>快一点，也暖一点</h3>
                   <p>
-                    默认选择较小的对话模型，以流式方式逐字显示。长对话会保留近期内容，减少等待和费用。
+                    {isTokenPlan
+                      ? '使用套餐支持的模型，以流式方式逐字显示。长对话只携带近期内容，减少等待和额度消耗。'
+                      : '推荐较小的对话模型，以流式方式逐字显示。长对话只携带近期内容，减少等待和费用。'}
                   </p>
                 </section>
                 <div className="settings-version">

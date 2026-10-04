@@ -28,6 +28,7 @@
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100vh;
   min-height: 100dvh;
 }
 body::before {
@@ -131,6 +132,7 @@ a svg {
   display: flex;
   width: calc(100% - 48px);
   max-width: 1700px;
+  height: calc(100vh - 48px);
   height: calc(100dvh - 48px);
   min-height: 600px;
   margin: 24px auto;
@@ -1533,6 +1535,48 @@ fieldset {
   font-style: italic;
   color: #91ab7d;
 }
+.provider-symbol-mimo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: #f4e7d7;
+  color: #bd7b47;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+.provider-switch-note {
+  margin-top: 10px;
+  color: #6e7964;
+  font-size: 9px;
+  line-height: 1.8;
+}
+.provider-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  border: 1px solid #e1e8d7;
+  border-radius: 8px;
+  background: rgba(237, 242, 230, 0.6);
+  color: #75886a;
+  min-width: 0;
+}
+.provider-endpoint > svg {
+  flex-shrink: 0;
+}
+.provider-endpoint code {
+  min-width: 0;
+  color: #607653;
+  font-size: 10px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
 .field {
   display: flex;
   flex-direction: column;
@@ -1960,6 +2004,7 @@ fieldset {
 .dialog {
   width: 470px;
   max-width: 100%;
+  max-height: calc(100vh - 40px);
   max-height: calc(100dvh - 40px);
   display: flex;
   flex-direction: column;
@@ -2318,6 +2363,7 @@ fieldset {
   background: rgba(255, 249, 242, 0.97);
 }
 .boot-screen {
+  min-height: 100vh;
   min-height: 100dvh;
   display: flex;
   align-items: center;
@@ -2524,6 +2570,7 @@ fieldset {
 @media (max-width: 1200px) {
   .app-shell {
     width: calc(100% - 28px);
+    height: calc(100vh - 28px);
     height: calc(100dvh - 28px);
     margin: 14px auto;
   }
@@ -2693,6 +2740,7 @@ fieldset {
   .app-shell {
     min-height: 0;
     width: 100%;
+    height: 100vh;
     height: 100dvh;
     margin: 0;
     border: 0;
@@ -3123,6 +3171,7 @@ fieldset {
   }
   .dialog {
     border-radius: 17px;
+    max-height: calc(100vh - 26px);
     max-height: calc(100dvh - 26px);
   }
   .dialog-header {

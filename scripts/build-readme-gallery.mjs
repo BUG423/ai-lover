@@ -36,7 +36,7 @@ try {
     .number { display: inline-block; vertical-align: 2px; font-size: 11px; padding: 4px 6px; margin-right: 8px; border-radius: 6px; color: #6e8664; background: #e5eddf; }
     p { margin: 0; font-size: 12px; color: #73816a; }
     footer { margin-top: 32px; text-align: center; color: #7c8a73; font-size: 12px; letter-spacing: 1px; }
-  </style></head><body><main><header><div><h1>把陪伴放进口袋</h1><div class="subtitle">知心 · AI Lover 的手机界面</div></div><div class="badge">移动端 Web / PWA</div></header><div class="grid">${images
+  </style></head><body><main><header><div><h1>把陪伴放进口袋</h1><div class="subtitle">知心 · AI Lover 的手机界面</div></div><div class="badge">Android · 界面预览</div></header><div class="grid">${images
     .map(
       (screen) =>
         `<article><div class="phone"><img src="${screen.source}" alt="${screen.title}"></div><h2><span class="number">0${screen.index}</span>${screen.title}</h2><p>${screen.description}</p></article>`,

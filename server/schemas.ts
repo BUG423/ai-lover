@@ -1,28 +1,34 @@
 import { z } from 'zod';
 import { PERSONALITIES } from '../shared/catalog';
+import { providerKeyError } from '../shared/providers';
 
 const gender = z.enum(['male', 'female', 'undefined', 'animal']);
 const stages = z.enum(['new', 'flirting', 'love', 'steady', 'separated', 'divorced']);
 const knownPersonalities = new Set(PERSONALITIES.map((item) => item.id));
 
-export const settingsSchema = z.object({
-  provider: z.enum(['siliconflow', 'siliconflow-international', 'custom']),
-  baseUrl: z.string().trim().min(1).max(300),
-  apiKey: z
-    .string()
-    .trim()
-    .min(1, '请先填写 API Key')
-    .max(512)
-    .refine((key) => !/[\r\n\u0000]/u.test(key), 'API Key 格式不正确'),
-  model: z
-    .string()
-    .trim()
-    .min(1, '请选择模型')
-    .max(150)
-    .refine((model) => !/[\r\n\u0000]/u.test(model), '模型名称格式不正确'),
-  temperature: z.number().min(0).max(2),
-  remember: z.boolean(),
-});
+export const settingsSchema = z
+  .object({
+    provider: z.enum(['mimo', 'siliconflow', 'siliconflow-international']),
+    baseUrl: z.string().trim().min(1).max(300),
+    apiKey: z
+      .string()
+      .trim()
+      .min(1, '请先填写 API Key')
+      .max(512)
+      .refine((key) => !/[\r\n\u0000]/u.test(key), 'API Key 格式不正确'),
+    model: z
+      .string()
+      .trim()
+      .min(1, '请选择模型')
+      .max(150)
+      .refine((model) => !/[\r\n\u0000]/u.test(model), '模型名称格式不正确'),
+    temperature: z.number().min(0).max(2),
+    remember: z.boolean(),
+  })
+  .superRefine((settings, ctx) => {
+    const message = providerKeyError(settings);
+    if (message) ctx.addIssue({ code: 'custom', message, path: ['apiKey'] });
+  });
 
 export const companionSchema = z
   .object({

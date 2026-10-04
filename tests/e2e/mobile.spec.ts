@@ -39,7 +39,7 @@ for (const viewport of [
     expect(await health.json()).toEqual({ ok: true });
 
     await page.route('**/api/models', (route) =>
-      route.fulfill({ json: { models: ['Qwen/Qwen3.5-9B', 'test/mobile-chat'] } }),
+      route.fulfill({ json: { models: ['mimo-v2.6-flash', 'test/mobile-chat'] } }),
     );
     let testedModel = '';
     await page.route('**/api/test', (route) => {
@@ -82,7 +82,7 @@ for (const viewport of [
     await noOverflow(page);
     await page
       .getByRole('textbox', { name: 'API 密钥', exact: true })
-      .fill('sk-mobile-smoke-test-not-a-real-key');
+      .fill('tp-mobile-smoke-test-not-a-real-key');
     await page.getByRole('button', { name: '读取模型', exact: true }).tap();
     await expect(page.getByRole('status')).toContainText('已读取 2 个');
     await page.getByLabel(/对话模型/).selectOption('test/mobile-chat');

@@ -2,15 +2,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp, type AppOptions } from '../server/app';
 import { DEFAULT_DRAFT, DEFAULT_SETTINGS } from '../shared/catalog';
+import type { ApiSettings } from '../shared/types';
 
-const settings = {
+const settings: ApiSettings = {
   ...DEFAULT_SETTINGS,
+  provider: 'siliconflow-international',
   apiKey: 'private-test-key',
   model: 'Qwen/Qwen3.5-9B',
   baseUrl: 'https://api.siliconflow.com/v1',
 };
 const companion = { ...DEFAULT_DRAFT, id: 'test', name: '小雨', createdAt: 1, updatedAt: 1 };
 const payload = { settings, companion, messages: [{ role: 'user', content: '今天有点难过' }] };
+const mimoSettings: ApiSettings = {
+  ...settings,
+  provider: 'mimo',
+  baseUrl: 'https://api.xiaomimimo.com/v1',
+  model: 'mimo-v2.6-flash',
+  apiKey: 'fake-mimo-test-key',
+};
+const planSettings: ApiSettings = {
+  ...mimoSettings,
+  baseUrl: 'https://token-plan-cn.xiaomimimo.com/v1',
+  apiKey: 'tp-fake-plan-test-key',
+};
 const servers: Server[] = [];
 
 async function serve(options: AppOptions = {}) {
@@ -92,6 +106,238 @@ describe('HTTP API contracts', () => {
       models: ['a', 'b'],
     });
   });
+
+  it('loads MiMo models from its own API and excludes speech-only models', async () => {
+    const upstream = mockFetch((url, init) => {
+      expect(url).toBe('https://api.xiaomimimo.com/v1/models');
+      expect(init.redirect).toBe('error');
+      expect(init.headers).toHaveProperty('api-key', mimoSettings.apiKey);
+      expect(init.headers).not.toHaveProperty('Authorization');
+      return jsonResponse({
+        data: [
+          { id: 'mimo-v2.6-pro' },
+          { id: 'mimo-v2.6-flash' },
+          { id: 'mimo-v2.5-asr' },
+          { id: 'mimo-v2.5-tts-voice-clone' },
+          { id: '' },
+        ],
+      });
+    });
+    const base = await serve({ fetch: upstream });
+    expect(await (await post(base, '/api/models', { settings: mimoSettings })).json()).toEqual({
+      models: ['mimo-v2.6-flash', 'mimo-v2.6-pro'],
+    });
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports an unavailable model listing without falling back to a different provider', async () => {
+    const upstream = mockFetch(() =>
+      jsonResponse({ error: { message: 'unsupported route' } }, 404),
+    );
+    const base = await serve({ fetch: upstream });
+    const response = await post(base, '/api/models', { settings: mimoSettings });
+    expect(response.status).toBe(502);
+    expect(await response.json()).toHaveProperty('error', expect.stringContaining('404'));
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it('tests the selected MiMo model with native authentication, 32 tokens and thinking disabled', async () => {
+    const upstream = mockFetch((url, init) => {
+      expect(url).toBe('https://api.xiaomimimo.com/v1/chat/completions');
+      expect(init.headers).toHaveProperty('api-key', mimoSettings.apiKey);
+      expect(init.headers).not.toHaveProperty('Authorization');
+      const request = JSON.parse(String(init.body));
+      expect(request).toMatchObject({
+        model: 'mimo-v2.6-flash',
+        stream: false,
+        max_completion_tokens: 32,
+        thinking: { type: 'disabled' },
+      });
+      expect(request).not.toHaveProperty('max_tokens');
+      return jsonResponse({ choices: [{ message: { content: '好' }, finish_reason: 'stop' }] });
+    });
+    const base = await serve({ fetch: upstream });
+    expect(await (await post(base, '/api/test', { settings: mimoSettings })).json()).toHaveProperty(
+      'ok',
+      true,
+    );
+  });
+
+  it('streams MiMo with the same public SSE contract and its provider-specific request shape', async () => {
+    const upstream = mockFetch((url, init) => {
+      expect(url).toBe('https://api.xiaomimimo.com/v1/chat/completions');
+      expect(init.headers).toHaveProperty('api-key', mimoSettings.apiKey);
+      expect(JSON.parse(String(init.body))).toMatchObject({
+        stream: true,
+        max_completion_tokens: 384,
+        thinking: { type: 'disabled' },
+      });
+      return eventResponse([
+        '{"choices":[{"delta":{"content":"我在，慢慢说。"}}]}',
+        '{"choices":[{"delta":{},"finish_reason":"stop"}]}',
+        '[DONE]',
+      ]);
+    });
+    const base = await serve({ fetch: upstream });
+    const received = events(
+      await (
+        await post(base, '/api/chat', {
+          ...payload,
+          settings: mimoSettings,
+        })
+      ).text(),
+    );
+    expect(received.map((event) => event.type)).toEqual(['delta', 'done']);
+    expect(received[0].text).toBe('我在，慢慢说。');
+  });
+
+  it.each(['/api/models', '/api/test', '/api/chat'])(
+    'rejects a removed custom provider at %s before contacting any service',
+    async (path) => {
+      const upstream = mockFetch(() => {
+        throw new Error('Must not fetch');
+      });
+      const base = await serve({ fetch: upstream });
+      const response = await post(base, path, {
+        ...payload,
+        settings: { ...settings, provider: 'custom', baseUrl: 'https://api.openai.com/v1' },
+      });
+      expect(response.status).toBe(400);
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
+    ['/api/models', '/api/test', '/api/chat'].flatMap((path) =>
+      ['tp-fake-plan-key', 'ttp-fake-team-key', 'TP-fake-plan-key'].map((apiKey) => ({
+        path,
+        apiKey,
+      })),
+    ),
+  )(
+    'rejects Token Plan credentials at a generic MiMo endpoint before any network request: $path',
+    async ({ path, apiKey }) => {
+      const upstream = mockFetch(() => {
+        throw new Error('Must not fetch');
+      });
+      const base = await serve({ fetch: upstream });
+      const response = await post(base, path, {
+        ...payload,
+        settings: { ...mimoSettings, apiKey },
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toHaveProperty(
+        'error',
+        expect.stringContaining('套餐专用地址'),
+      );
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(
+    ['/api/models', '/api/test', '/api/chat'].flatMap((path) =>
+      ['siliconflow', 'siliconflow-international'].map((provider) => ({ path, provider })),
+    ),
+  )('does not send a Token Plan key to $provider at $path', async ({ path, provider }) => {
+    const upstream = mockFetch(() => {
+      throw new Error('Must not fetch');
+    });
+    const base = await serve({ fetch: upstream });
+    const response = await post(base, path, {
+      ...payload,
+      settings: {
+        ...settings,
+        provider,
+        baseUrl: provider === 'siliconflow' ? 'https://api.siliconflow.cn/v1' : settings.baseUrl,
+        apiKey: planSettings.apiKey,
+      },
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toHaveProperty('error', expect.stringContaining('套餐专用地址'));
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it.each(['/api/models', '/api/test', '/api/chat'])(
+    'does not send a regular MiMo key to a Token Plan endpoint at %s',
+    async (path) => {
+      const upstream = mockFetch(() => {
+        throw new Error('Must not fetch');
+      });
+      const base = await serve({ fetch: upstream });
+      const response = await post(base, path, {
+        ...payload,
+        settings: { ...planSettings, apiKey: 'sk-fake-regular-key' },
+      });
+      expect(response.status).toBe(400);
+      expect(await response.json()).toHaveProperty(
+        'error',
+        expect.stringContaining('需要 tp-/ttp-'),
+      );
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['cn', 'sgp', 'ams'])(
+    'accepts authorized Token Plan credentials only on the fixed %s cluster',
+    async (cluster) => {
+      const endpoint = `https://token-plan-${cluster}.xiaomimimo.com/v1`;
+      const upstream = mockFetch((url, init) => {
+        expect(url).toBe(`${endpoint}/models`);
+        expect(init.headers).toHaveProperty('api-key', planSettings.apiKey);
+        return jsonResponse({ data: [{ id: 'mimo-v2.6-flash' }] });
+      });
+      const base = await serve({ fetch: upstream });
+      expect(
+        await (
+          await post(base, '/api/models', { settings: { ...planSettings, baseUrl: endpoint } })
+        ).json(),
+      ).toEqual({ models: ['mimo-v2.6-flash'] });
+      expect(upstream).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('tests and streams an authorized Token Plan model without falling back to the paid API', async () => {
+    const upstream = mockFetch((url, init) => {
+      expect(url).toBe('https://token-plan-cn.xiaomimimo.com/v1/chat/completions');
+      expect(init.headers).toHaveProperty('api-key', planSettings.apiKey);
+      const body = JSON.parse(String(init.body));
+      expect(body).toHaveProperty('thinking', { type: 'disabled' });
+      if (!body.stream)
+        return jsonResponse({ choices: [{ message: { content: '好' }, finish_reason: 'stop' }] });
+      return eventResponse([
+        '{"choices":[{"delta":{"content":"我在。"}}]}',
+        '{"choices":[{"delta":{},"finish_reason":"stop"}]}',
+        '[DONE]',
+      ]);
+    });
+    const base = await serve({ fetch: upstream });
+    expect(await (await post(base, '/api/test', { settings: planSettings })).json()).toHaveProperty(
+      'ok',
+      true,
+    );
+    expect(
+      events(
+        await (await post(base, '/api/chat', { ...payload, settings: planSettings })).text(),
+      ).map((event) => event.type),
+    ).toEqual(['delta', 'done']);
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['/api/models', '/api/test', '/api/chat'])(
+    'rejects a forged provider/domain pair at %s before exposing the key',
+    async (path) => {
+      const upstream = mockFetch(() => {
+        throw new Error('Must not fetch');
+      });
+      const base = await serve({ fetch: upstream });
+      const response = await post(base, path, {
+        ...payload,
+        settings: { ...mimoSettings, baseUrl: 'https://api.siliconflow.com/v1' },
+      });
+      expect(response.status).toBe(400);
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
 
   it('tests the selected model with a small real completion rather than model-list access', async () => {
     const upstream = mockFetch((url, init) => {

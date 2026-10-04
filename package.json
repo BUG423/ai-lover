@@ -10,13 +10,25 @@
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && vite build",
     "start": "tsx server/index.ts",
+    "android:sync": "npm run build && cap sync android",
+    "android:build": "npm run android:sync && node scripts/build-android.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "docs:gallery": "node scripts/build-readme-gallery.mjs",
     "format": "prettier --write src shared server tests scripts public/*.js *.ts *.json",
     "format:check": "prettier --check src shared server tests scripts public/*.js *.ts *.json"
   },
+  "overrides": {
+    "xcode": {
+      "uuid": "^11.1.0"
+    }
+  },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/share": "^8.0.3",
     "express": "^5.1.0",
     "express-rate-limit": "^8.0.0",
     "helmet": "^8.1.0",
@@ -27,6 +39,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@playwright/test": "^1.55.0",
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",

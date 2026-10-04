@@ -1,4 +1,5 @@
 import type { ApiSettings } from '../shared/types';
+import { validProviderBaseUrl } from '../shared/providers';
 import type { ModelMessage } from './prompt';
 
 export class ApiError extends Error {
@@ -11,40 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-const DEFAULT_ORIGINS = [
-  'https://api.siliconflow.com',
-  'https://api.siliconflow.cn',
-  'https://api.openai.com',
-];
-export function trustedOrigins(extra = process.env.ALLOWED_API_ORIGINS || ''): Set<string> {
-  const origins = new Set(DEFAULT_ORIGINS);
-  for (const raw of extra
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)) {
-    let url: URL;
-    try {
-      url = new URL(raw);
-    } catch {
-      throw new Error('ALLOWED_API_ORIGINS 必须是 HTTPS origin 列表');
-    }
-    if (
-      url.protocol !== 'https:' ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash ||
-      /[?#\\\r\n\u0000]/u.test(raw) ||
-      url.pathname !== '/'
-    ) {
-      throw new Error('ALLOWED_API_ORIGINS 只能包含不带路径或凭据的 HTTPS origin');
-    }
-    origins.add(url.origin);
-  }
-  return origins;
-}
-
-export function apiBaseUrl(raw: string, allowlist: Set<string>): string {
+export function apiBaseUrl(raw: string, provider: ApiSettings['provider']): string {
   let url: URL;
   try {
     url = new URL(raw);
@@ -61,18 +29,24 @@ export function apiBaseUrl(raw: string, allowlist: Set<string>): string {
   ) {
     throw new ApiError('API 地址必须为 HTTPS，且不能包含用户名、密码、查询或片段', 400);
   }
-  if (!allowlist.has(url.origin))
-    throw new ApiError(
-      '该 API 服务未在服务器可信列表中，请使用硅基流动或联系管理员配置 ALLOWED_API_ORIGINS',
-      400,
-    );
   const rawPath = raw.match(/^https:\/\/[^/?#]+([^?#]*)/iu)?.[1];
-  if (
-    !['', '/', '/v1', '/v1/'].includes(rawPath ?? 'invalid') ||
-    !['/', '/v1', '/v1/'].includes(url.pathname)
-  )
+  if (!['/v1', '/v1/'].includes(rawPath ?? 'invalid') || !['/v1', '/v1/'].includes(url.pathname))
     throw new ApiError('API 地址路径仅支持 /v1', 400);
-  return `${url.origin}/v1`;
+  const base = `${url.origin}/v1`;
+  if (!validProviderBaseUrl(provider, raw)) {
+    throw new ApiError('API 地址与所选服务不匹配；仅支持小米 MiMo 和硅基流动官方端点', 400);
+  }
+  return base;
+}
+
+export function providerHeaders(settings: ApiSettings): Record<string, string> {
+  return settings.provider === 'mimo'
+    ? { 'api-key': settings.apiKey }
+    : { Authorization: `Bearer ${settings.apiKey}` };
+}
+
+export function connectionTestTokens(settings: ApiSettings): number {
+  return settings.provider === 'mimo' ? 32 : 16;
 }
 
 export function scrubError(message: string, apiKey: string): string {
@@ -192,15 +166,20 @@ export function completionBody(
   stream: boolean,
   tokenLimit = 384,
 ): Record<string, unknown> {
-  const openAIReasoning = /^(o[134](?:-|$)|gpt-5(?:-|$))/u.test(settings.model);
   return {
     model: settings.model,
     messages,
     stream,
-    ...(openAIReasoning
-      ? { max_completion_tokens: tokenLimit }
+    ...(settings.provider === 'mimo'
+      ? {
+          max_completion_tokens: tokenLimit,
+          temperature: Math.min(settings.temperature, 1.5),
+          thinking: { type: 'disabled' },
+        }
       : { max_tokens: tokenLimit, temperature: settings.temperature }),
-    ...(NON_THINKING_MODELS.has(settings.model) ? { enable_thinking: false } : {}),
+    ...(settings.provider !== 'mimo' && NON_THINKING_MODELS.has(settings.model)
+      ? { enable_thinking: false }
+      : {}),
   };
 }
 

@@ -25,7 +25,7 @@ export interface Message {
   error?: string;
 }
 export interface ApiSettings {
-  provider: 'siliconflow' | 'siliconflow-international' | 'custom';
+  provider: 'mimo' | 'siliconflow' | 'siliconflow-international';
   baseUrl: string;
   apiKey: string;
   model: string;

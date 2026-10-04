@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   apiBaseUrl,
   completionBody,
+  connectionTestTokens,
   parseCompletionEvent,
   parseSSE,
-  trustedOrigins,
+  providerHeaders,
 } from '../server/upstream';
 import { DEFAULT_SETTINGS } from '../shared/catalog';
+import type { ApiSettings } from '../shared/types';
 
 function fragmented(text: string, chunkSize = 1): ReadableStream<Uint8Array> {
   const bytes = new TextEncoder().encode(text);
@@ -85,14 +87,16 @@ describe('actual upstream SSE parsing', () => {
 });
 
 describe('provider compatibility and SSRF boundaries', () => {
-  const allowed = trustedOrigins('https://trusted.example');
   it.each([
-    'https://api.siliconflow.com/v1',
-    'https://api.siliconflow.cn/v1/',
-    'https://api.openai.com',
-    'https://trusted.example/',
-  ])('allows the exact trusted provider %s', (url) => {
-    expect(apiBaseUrl(url, allowed)).toMatch(/^https:\/\/.+\/v1$/u);
+    { provider: 'siliconflow-international' as const, url: 'https://api.siliconflow.com/v1' },
+    { provider: 'siliconflow' as const, url: 'https://api.siliconflow.cn/v1/' },
+    { provider: 'mimo' as const, url: 'https://api.xiaomimimo.com/v1' },
+    { provider: 'mimo' as const, url: 'https://api.xiaomimimo.com/v1/' },
+    { provider: 'mimo' as const, url: 'https://token-plan-cn.xiaomimimo.com/v1' },
+    { provider: 'mimo' as const, url: 'https://token-plan-sgp.xiaomimimo.com/v1' },
+    { provider: 'mimo' as const, url: 'https://token-plan-ams.xiaomimimo.com/v1/' },
+  ])('allows the exact provider endpoint $url', ({ provider, url }) => {
+    expect(apiBaseUrl(url, provider)).toBe(url.replace(/\/$/u, ''));
   });
 
   it.each([
@@ -109,30 +113,84 @@ describe('provider compatibility and SSRF boundaries', () => {
     'https://api.siliconflow.com/admin',
     'https://api.siliconflow.com/../v1',
     'https://api.siliconflow.com\\@evil.example/v1',
+    'https://api.siliconflow.com',
+    'https://api.siliconflow.com:443/v1',
+    'https://api.openai.com/v1',
+    'https://trusted.example/v1',
+    'https://token-plan-cn.xiaomimimo.com/v1',
+    'https://token-plan-sgp.xiaomimimo.com/v1',
+    'https://token-plan-ams.xiaomimimo.com/v1',
+    'https://api.xiaomimimo.com/v1/coding',
   ])('rejects untrusted or ambiguous URL %s', (url) => {
-    expect(() => apiBaseUrl(url, allowed)).toThrow();
+    expect(() => apiBaseUrl(url, 'siliconflow-international')).toThrow();
   });
 
-  it('rejects unsafe administrator allowlist entries instead of quietly accepting them', () => {
-    expect(() => trustedOrigins('http://internal.example')).toThrow('HTTPS');
-    expect(() => trustedOrigins('https://key@trusted.example')).toThrow('凭据');
-    expect(() => trustedOrigins('https://trusted.example/path')).toThrow('路径');
+  it.each([
+    { provider: 'mimo' as const, url: 'https://api.siliconflow.com/v1' },
+    { provider: 'siliconflow' as const, url: 'https://api.siliconflow.com/v1' },
+    { provider: 'siliconflow-international' as const, url: 'https://api.siliconflow.cn/v1' },
+    {
+      provider: 'siliconflow-international' as const,
+      url: 'https://token-plan-cn.xiaomimimo.com/v1',
+    },
+  ])('prevents a key for $provider from being sent to $url', ({ provider, url }) => {
+    expect(() => apiBaseUrl(url, provider)).toThrow('不匹配');
   });
 
-  it('only disables thinking where documented, keeping the new default model compatible', () => {
+  it('does not permit the removed custom provider or an environment allowlist override', () => {
+    const previous = process.env.ALLOWED_API_ORIGINS;
+    process.env.ALLOWED_API_ORIGINS = 'https://trusted.example';
+    try {
+      expect(() =>
+        apiBaseUrl('https://trusted.example/v1', 'custom' as ApiSettings['provider']),
+      ).toThrow('不匹配');
+      expect(() => apiBaseUrl('https://trusted.example/v1', 'mimo')).toThrow('不匹配');
+    } finally {
+      if (previous === undefined) delete process.env.ALLOWED_API_ORIGINS;
+      else process.env.ALLOWED_API_ORIGINS = previous;
+    }
+  });
+
+  it('only sends SiliconFlow enable_thinking for documented model IDs', () => {
     const body = completionBody(
-      { ...DEFAULT_SETTINGS, model: 'Qwen/Qwen3.5-9B' },
+      { ...DEFAULT_SETTINGS, provider: 'siliconflow-international', model: 'Qwen/Qwen3.5-9B' },
       [{ role: 'user', content: '你好' }],
       true,
     );
     expect(body).toMatchObject({ stream: true, max_tokens: 384 });
     expect(body).not.toHaveProperty('enable_thinking');
     expect(
-      completionBody({ ...DEFAULT_SETTINGS, model: 'Qwen/Qwen3-8B' }, [], true),
+      completionBody(
+        { ...DEFAULT_SETTINGS, provider: 'siliconflow', model: 'Qwen/Qwen3-8B' },
+        [],
+        true,
+      ),
     ).toHaveProperty('enable_thinking', false);
-    const openAI = completionBody({ ...DEFAULT_SETTINGS, model: 'gpt-5-mini' }, [], true);
-    expect(openAI).toHaveProperty('max_completion_tokens', 384);
-    expect(openAI).not.toHaveProperty('temperature');
-    expect(openAI).not.toHaveProperty('max_tokens');
+  });
+
+  it('uses MiMo-specific auth and disables thinking with the documented request shape', () => {
+    const mimo = {
+      ...DEFAULT_SETTINGS,
+      provider: 'mimo' as const,
+      model: 'mimo-v2.6-flash',
+      temperature: 2,
+      apiKey: 'fake-mimo-test-key',
+    };
+    const body = completionBody(mimo, [{ role: 'user', content: '你好' }], true);
+    expect(body).toMatchObject({
+      model: 'mimo-v2.6-flash',
+      stream: true,
+      max_completion_tokens: 384,
+      temperature: 1.5,
+      thinking: { type: 'disabled' },
+    });
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('enable_thinking');
+    expect(providerHeaders(mimo)).toEqual({ 'api-key': 'fake-mimo-test-key' });
+    expect(connectionTestTokens(mimo)).toBe(32);
+    expect(providerHeaders({ ...mimo, provider: 'siliconflow' })).toEqual({
+      Authorization: 'Bearer fake-mimo-test-key',
+    });
+    expect(connectionTestTokens({ ...mimo, provider: 'siliconflow' })).toBe(16);
   });
 });

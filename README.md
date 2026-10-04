@@ -4,7 +4,8 @@
 
 <p align="center">
   <a href="https://github.com/BUG423/ai-lover/actions/workflows/ci.yml"><img src="https://github.com/BUG423/ai-lover/actions/workflows/ci.yml/badge.svg" alt="自动构建与测试" /></a>
-  <img src="https://img.shields.io/badge/Web_%2B_PWA-电脑与手机-52765f?style=flat" alt="电脑与手机 Web/PWA" />
+  <img src="https://img.shields.io/badge/Android_APK-原生安装包-52765f?style=flat" alt="Android APK" />
+  <img src="https://img.shields.io/badge/Web-电脑预览-52765f?style=flat" alt="电脑 Web 预览" />
   <img src="https://img.shields.io/badge/Node.js-24%2B-52765f?style=flat" alt="Node.js 24+" />
 </p>
 
@@ -16,14 +17,14 @@
   <a href="#设计与架构">设计与架构</a>
 </p>
 
-**知心是一款支持电脑和手机的 AI 陪伴应用。** 微信式聊天、通讯录和设置，配合苹果磨砂玻璃视觉；为不同对象设定个性和关系，用自己的模型 API Key 开始对话。
+**知心是一款可安装到安卓手机的 AI 陪伴应用，也提供电脑网页预览。** 微信式聊天、通讯录和设置，配合苹果磨砂玻璃视觉；为不同对象设定个性和关系，用自己的模型 API Key 开始对话。安卓客户端内置界面并直接连接模型，使用时无需电脑运行服务。
 
 ## 一眼了解
 
 | 🌷 定义你的陪伴            | 💬 自然地聊下去              | 🗝️ 自己掌握设置                  |
 | -------------------------- | ---------------------------- | -------------------------------- |
 | 多对象，分别保存设定与聊天 | 流式显示，边生成边阅读       | 自带 API Key，自选模型           |
-| 双方各 4 种身份，16 种组合 | 每次携带当前对象的近期上下文 | 国际站、国内站及受信的兼容服务   |
+| 双方各 4 种身份，16 种组合 | 每次携带当前对象的近期上下文 | 仅小米 MiMo、硅基流动            |
 | 16 种性格，可组合 1–3 项   | 停止回复、失败重试、表情输入 | 本机密钥加密、聊天备份导入导出   |
 | 6 个关系阶段、可选背景     | 对象设定可随时修改           | 桌面三栏，手机底部导航与单页对话 |
 
@@ -48,7 +49,7 @@
 | 👥 通讯录   | 查找对象、查看资料、编辑设定、开始对话 | [手机通讯录](docs/screenshots/mobile-contacts.png) |
 | ⚙️ 设置     | 填写 Key、选择模型、测试并保存连接     | [手机设置](docs/screenshots/mobile-settings.png)   |
 
-以上为应用实际页面截图。手机截图使用浏览器触摸设备模拟；真实设备测试范围见下方验证说明。
+以上为应用实际页面的布局预览，手机截图使用浏览器触摸设备模拟；安卓安装包与真机测试进度见[安卓交付记录](docs/android.md)。
 
 <details>
 <summary>展开查看电脑端设置</summary>
@@ -59,7 +60,19 @@
 
 ## 手机使用
 
-**在手机浏览器中打开已部署的 HTTPS 网址，即可使用同一个应用。** 手机上的 `localhost` 指向手机自身；电脑启动后的 `http://localhost:5173` 用于电脑本机访问。
+**Android 使用 APK 安装，直接从桌面「知心」图标启动。** 下载 GitHub Actions 的 `ai-lover-android-debug` 构建产物并解压，打开 `app-debug.apk` 安装；首次安装按系统提示允许该来源。本轮测试包也已传入 OPPO 的「下载」目录。当前是调试签名测试包，正式分发需配置自己的发布签名。
+
+[下载最新安卓构建产物](https://github.com/BUG423/ai-lover/actions/workflows/ci.yml) · [构建、安装与 OPPO 测试记录](docs/android.md)
+
+需要自行构建时，准备 Node.js 24+、JDK 21、Android SDK 36：
+
+```bash
+npm ci
+npm run android:build
+# android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+电脑预览及其他移动浏览器仍可打开部署后的 HTTPS 网页。以下为网页版可选使用方式：
 
 | 平台          | 打开方式                    | 添加到桌面                                                   |
 | ------------- | --------------------------- | ------------------------------------------------------------ |
@@ -69,7 +82,7 @@
 
 添加后可从桌面图标打开。PWA 安装与本机密钥加密需要安全上下文，正式部署请使用 HTTPS。离线可以查看已缓存页面和本机记录；生成新回复需要联网。
 
-**数据按浏览器和设备保存。** 电脑与手机不会自动同步，迁移时在设置中导出/导入备份；API Key 不包含在备份中，新设备需要单独填写。
+**数据保存在当前应用或浏览器中。** 电脑与手机不会自动同步，迁移时在设置中导出/导入备份；安卓使用系统分享菜单保存备份。API Key 不包含在备份中，新设备需要单独填写。
 
 ## 快速开始
 
@@ -90,13 +103,15 @@ npm run dev
 
 进入「设置」，选择服务区域，填入对应区域的 API Key，读取模型或手动输入模型名称，测试连接后保存。连接测试会实际生成极短文本，产生少量调用费用。
 
-| 服务                      | 接口地址                         | 获取密钥 / 教程                                                                                                             |
-| ------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **硅基流动国际站 · 默认** | `https://api.siliconflow.com/v1` | [创建 Key](https://cloud.siliconflow.com/account/ak) · [官方教程](https://docs.siliconflow.com/en/userguide/quickstart)     |
-| 硅基流动国内站            | `https://api.siliconflow.cn/v1`  | [创建 Key](https://cloud.siliconflow.cn/account/ak) · [官方教程](https://api-docs.siliconflow.cn/docs/userguide/quickstart) |
-| OpenAI 兼容服务           | 服务商的受信 `/v1` 地址          | 部署者按[生产运行](#生产运行)配置允许域名                                                                                   |
+| 服务                 | 接口地址                                  | 获取密钥 / 教程                                                                                                                                  |
+| -------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **小米 MiMo · 默认** | `https://token-plan-cn.xiaomimimo.com/v1` | [套餐管理](https://platform.xiaomimimo.com/console/plan-manage) · [接入指南](https://mimo.mi.com/docs/zh-CN/tokenplan/Token%20Plan/quick-access) |
+| 硅基流动国际站       | `https://api.siliconflow.com/v1`          | [创建 Key](https://cloud.siliconflow.com/account/ak) · [官方教程](https://docs.siliconflow.com/en/userguide/quickstart)                          |
+| 硅基流动国内站       | `https://api.siliconflow.cn/v1`           | [创建 Key](https://cloud.siliconflow.cn/account/ak) · [官方教程](https://api-docs.siliconflow.cn/docs/userguide/quickstart)                      |
 
-默认模型为 **`Qwen/Qwen3.5-9B`**。国际站价格研究快照（2026-10-03）：输入 **$0.10**、输出 **$0.15 / 百万 token**，以[官网价格](https://www.siliconflow.com/pricing)和实际账户为准；可用模型通过自己的 Key 实时读取。
+默认模型为 **`mimo-v2.6-flash`**，关闭思考并流式显示正文。小米账户类型可选 Token Plan 中国 / 新加坡 / 阿姆斯特丹，或[普通按量 API](https://platform.xiaomimimo.com/console/api-keys)；区域以套餐控制台为准，密钥类型与接口严格对应，切换账户或供应商会清空旧 Key 和模型列表。
+
+Token Plan 官方一般规则限定编程场景；本次用户声明已获得小米对此应用的授权，因此支持套餐接入。其他用户需自行获得适用授权，或选择普通 API。普通 MiMo Flash 价格快照（2026-10-04）：输入 ¥1、输出 ¥2 / 百万 token；套餐按额度使用，以[官方说明](docs/mimo-integration.md)和实际账户为准。仓库和 APK 均不内置任何用户密钥。
 
 ### 3 · 创建对象，开始聊天
 
@@ -114,8 +129,9 @@ flowchart LR
 
 | 验证层级            | 检查内容                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------ |
-| 🧪 单元与服务测试   | 98 项：16 种身份组合、提示词、上下文预算、流式分包、超时、取消、密钥脱敏与地址校验                     |
-| 🖥️ 基础浏览器回归   | 9 条流程：对象管理、API 设置、加密恢复、备份、独立上下文、错误重试、长对话与状态竞争                   |
+| 🧪 单元与服务测试   | 154 项：身份与提示词、上下文、流式、超时、取消、密钥与地址校验，以及原生桥接协议                       |
+| 🤖 安卓原生测试     | 8 项 JVM 回归；APK 已构建、签名及传输校验通过；真机安装状态见安卓记录                                  |
+| 🖥️ 基础浏览器回归   | 对象管理、API 设置、加密恢复、备份、独立上下文、错误重试、长对话与状态竞争                             |
 | 📱 手机触摸冒烟测试 | 3 条流程通过：320 / 390 / 412 像素宽度，覆盖导航、创建、设置、聊天和刷新恢复；检查水平溢出与操作可见性 |
 | 📦 生产启动与 PWA   | Node 生产页面、健康接口、API 404、静态资源缓存与离线页面恢复                                           |
 | ✅ GitHub Actions   | 每次推送执行格式检查、单元测试、生产构建及桌面/手机浏览器测试                                          |
@@ -135,7 +151,7 @@ npm run test:e2e
 npm run test:e2e -- --project=mobile-chromium
 ```
 
-[查看最新自动测试结果](https://github.com/BUG423/ai-lover/actions/workflows/ci.yml) · [本轮冒烟测试记录](docs/smoke-tests.md)。浏览器测试使用受控模拟模型响应，不消耗真实供应商余额。移动端验证使用 Chromium 触摸模拟，尚未覆盖真实 iPhone / Android 设备或 Safari 引擎；没有用户 API Key，默认模型的实际角色表现和网络延迟仍待实测。
+[查看最新自动测试结果](https://github.com/BUG423/ai-lover/actions/workflows/ci.yml) · [冒烟测试记录](docs/smoke-tests.md) · [安卓测试记录](docs/android.md)。自动化浏览器测试使用模拟响应；另已用用户本机 Key 验证真实 MiMo 网关：一次完整角色聊天首正文约 1.8 秒、总耗时约 7.2 秒，另一次触发首正文超时。这是样本记录，不是延迟承诺；OPPO 原生聊天仍须完成安装后实测。
 
 ## 生产运行
 
@@ -158,15 +174,9 @@ Docker 配置已提供；当前交付环境没有 Docker，容器构建未实测
 </details>
 
 <details>
-<summary>接入其他 OpenAI 兼容服务</summary>
+<summary>供应商与运行配置</summary>
 
-默认允许硅基流动国际站、中国站和 `https://api.openai.com/v1`。添加其他兼容供应商时，部署者通过环境变量显式配置信任其 HTTPS origin：
-
-```bash
-ALLOWED_API_ORIGINS=https://api.example.com npm start
-```
-
-设置中的接口地址需使用该 origin 的 `/v1` 路径。`PORT` 可覆盖默认的 3001，环境配置示例见 [.env.example](.env.example)。
+仅允许小米 MiMo 和硅基流动官方端点，不提供自定义地址或其他供应商入口。网页版的 `PORT` 可覆盖默认 3001，示例见 [.env.example](.env.example)。安卓客户端使用原生 HTTPS 网关，无需这个服务器。
 
 </details>
 
@@ -177,16 +187,18 @@ ALLOWED_API_ORIGINS=https://api.example.com npm start
 
 API Key 通过本机设备密钥加密保存，并从聊天备份中排除；加密无法抵御已控制同源页面或设备的攻击。清理浏览器、隐私模式或换设备可能无法保留原数据，请使用备份迁移。
 
-首版提供 Web/PWA 和桌面/手机响应式界面。跨设备账号同步、语音、群聊、主动推送和自动长期记忆尚未实现。
+首版提供安卓 APK 和电脑/手机响应式网页预览。跨设备账号同步、语音、群聊、主动推送和自动长期记忆尚未实现。
 
 </details>
 
 ## 设计与架构
 
-| 文档                                     | 内容                                                       |
-| ---------------------------------------- | ---------------------------------------------------------- |
-| [竞品与模型调研](docs/research.md)       | Character.AI、Replika、Nomi、Kindroid 的官方资料与选型依据 |
-| [产品需求](docs/product-requirements.md) | 多对象、身份、性格、关系阶段与验收要求                     |
-| [架构设计](docs/architecture.md)         | 数据流、领域模型、上下文预算与架构决策                     |
-| [模型网关](docs/backend.md)              | 接口契约、流式协议、失败和取消策略                         |
-| [进度与验证记录](docs/progress.md)       | 已完成工作、验证结果与尚未实测的范围                       |
+| 文档                                      | 内容                                                       |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| [竞品与模型调研](docs/research.md)        | Character.AI、Replika、Nomi、Kindroid 的官方资料与选型依据 |
+| [产品需求](docs/product-requirements.md)  | 多对象、身份、性格、关系阶段与验收要求                     |
+| [架构设计](docs/architecture.md)          | 数据流、领域模型、上下文预算与架构决策                     |
+| [模型网关](docs/backend.md)               | 接口契约、流式协议、失败和取消策略                         |
+| [安卓交付](docs/android.md)               | APK 构建、安装与 OPPO 真机验证                             |
+| [MiMo 接入核验](docs/mimo-integration.md) | 套餐区域、普通 API、参数、授权适用范围与价格               |
+| [进度与验证记录](docs/progress.md)        | 已完成工作、验证结果与尚未实测的范围                       |
