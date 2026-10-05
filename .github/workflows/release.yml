@@ -74,13 +74,22 @@ jobs:
       - name: Restore established test APK signing identity
         env:
           ANDROID_TEST_KEYSTORE: ${{ secrets.ANDROID_TEST_KEYSTORE }}
+          ANDROID_TEST_KEYSTORE_PATH: ${{ runner.temp }}/ai-lover-signing/debug.keystore
         run: |
           test -n "$ANDROID_TEST_KEYSTORE"
-          mkdir -p "$HOME/.android"
-          printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
-          chmod 600 "$HOME/.android/debug.keystore"
+          mkdir -p "$(dirname "$ANDROID_TEST_KEYSTORE_PATH")"
+          chmod 700 "$(dirname "$ANDROID_TEST_KEYSTORE_PATH")"
+          printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$ANDROID_TEST_KEYSTORE_PATH"
+          chmod 600 "$ANDROID_TEST_KEYSTORE_PATH"
       - run: npm run android:build
       - run: cd android && ./gradlew lintDebug --console=plain
+      - name: Apply and verify established APK signing identity
+        env:
+          ANDROID_TEST_KEYSTORE_PATH: ${{ runner.temp }}/ai-lover-signing/debug.keystore
+          ANDROID_TEST_CERTIFICATE_SHA256: ${{ vars.ANDROID_TEST_CERTIFICATE_SHA256 }}
+        run: |
+          test -n "$ANDROID_TEST_CERTIFICATE_SHA256"
+          node scripts/sign-android-test.mjs artifacts/ai-lover-debug.apk
       - run: python3 scripts/audit-secrets.py --history artifacts/ai-lover-debug.apk
       - name: Name Android distribution
         run: |

@@ -75,13 +75,26 @@ jobs:
       - name: Restore test APK signing identity when available
         env:
           ANDROID_TEST_KEYSTORE: ${{ secrets.ANDROID_TEST_KEYSTORE }}
+          ANDROID_TEST_KEYSTORE_PATH: ${{ runner.temp }}/ai-lover-signing/debug.keystore
         run: |
           if [ -n "$ANDROID_TEST_KEYSTORE" ]; then
-            mkdir -p "$HOME/.android"
-            printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
-            chmod 600 "$HOME/.android/debug.keystore"
+            mkdir -p "$(dirname "$ANDROID_TEST_KEYSTORE_PATH")"
+            chmod 700 "$(dirname "$ANDROID_TEST_KEYSTORE_PATH")"
+            printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$ANDROID_TEST_KEYSTORE_PATH"
+            chmod 600 "$ANDROID_TEST_KEYSTORE_PATH"
           fi
       - run: cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
+      - name: Apply and verify established APK signing identity when available
+        env:
+          ANDROID_TEST_KEYSTORE_PATH: ${{ runner.temp }}/ai-lover-signing/debug.keystore
+          ANDROID_TEST_CERTIFICATE_SHA256: ${{ vars.ANDROID_TEST_CERTIFICATE_SHA256 }}
+        run: |
+          if [ -f "$ANDROID_TEST_KEYSTORE_PATH" ]; then
+            node scripts/sign-android-test.mjs android/app/build/outputs/apk/debug/app-debug.apk
+          else
+            echo "Test signing secret is unavailable; keeping this CI-only APK's generated signature."
+          fi
+      - run: python3 scripts/audit-secrets.py android/app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
           name: ai-lover-android-debug
