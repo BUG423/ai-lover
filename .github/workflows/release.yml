@@ -85,6 +85,7 @@ jobs:
       - run: cd android && ./gradlew lintDebug --console=plain
       - name: Apply and verify established APK signing identity
         env:
+          ANDROID_BUILD_TOOLS_VERSION: 35.0.0
           ANDROID_TEST_KEYSTORE_PATH: ${{ runner.temp }}/ai-lover-signing/debug.keystore
           ANDROID_TEST_CERTIFICATE_SHA256: ${{ vars.ANDROID_TEST_CERTIFICATE_SHA256 }}
         run: |

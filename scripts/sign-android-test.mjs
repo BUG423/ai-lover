@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { assertAndroidSigningIdentity } from './android-signing-identity.mjs';
 
 // Explicit final signing avoids AGP's environment-dependent default debug.keystore.
 // Only the public certificate fingerprint is logged; keystore bytes/passwords are not.
@@ -26,15 +27,10 @@ const keytool = existsSync(join(javaHome, 'bin', `keytool${extension}`))
 const sdk =
   process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT || join(cachedTools, 'android-sdk');
 const buildTools = join(sdk, 'build-tools');
-const versions = existsSync(buildTools)
-  ? readdirSync(buildTools).sort((left, right) =>
-      right.localeCompare(left, 'en', { numeric: true }),
-    )
-  : [];
-const apksignerJar = versions
-  .map((version) => join(buildTools, version, 'lib', 'apksigner.jar'))
-  .find((candidate) => existsSync(candidate));
-if (!apksignerJar) throw new Error('Android Build Tools apksigner.jar missing');
+const toolsVersion = process.env.ANDROID_BUILD_TOOLS_VERSION || '35.0.0';
+const apksignerJar = join(buildTools, toolsVersion, 'lib', 'apksigner.jar');
+if (!existsSync(apksignerJar))
+  throw new Error(`Android Build Tools ${toolsVersion} apksigner.jar missing`);
 const signingEnv = {
   ...process.env,
   ANDROID_TEST_STORE_PASSWORD: process.env.ANDROID_TEST_STORE_PASSWORD || 'android',
@@ -114,15 +110,13 @@ try {
     ['-jar', apksignerJar, 'verify', '--verbose', '--print-certs', signed],
     'Verify APK signing',
   ).toString('utf8');
-  const digests = [
-    ...verification.matchAll(/^Signer #\d+ certificate SHA-256 digest: ([a-f0-9]+)$/gimu),
-  ];
-  if (digests.length !== 1 || digests[0][1].toLowerCase() !== expected)
-    throw new Error('APK certificate does not match the explicitly selected test keystore');
+  assertAndroidSigningIdentity(verification, expected);
   if (contentsDigest(signed) !== originalContents)
     throw new Error('Application contents changed during APK signing');
   renameSync(signed, apk);
-  console.log(`APK verified: certificate SHA-256 ${expected}; application contents unchanged.`);
+  console.log(
+    `APK verified with Build Tools ${toolsVersion}: certificate SHA-256 ${expected}; application contents unchanged.`,
+  );
 } finally {
   rmSync(temporary, { recursive: true, force: true });
 }
