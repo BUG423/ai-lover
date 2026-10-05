@@ -44,6 +44,7 @@ await writeFile(
       author: 'AI Lover contributors',
       private: true,
       main: 'main.cjs',
+      dependencies: {},
     },
     null,
     2,

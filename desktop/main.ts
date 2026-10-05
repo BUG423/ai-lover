@@ -142,13 +142,25 @@ if (!app.requestSingleInstanceLock()) {
           headers['Content-Type'] = 'application/json';
         }
         try {
-          return await fetch(`${gateway.url}${url.pathname}${url.search}`, {
+          const response = await fetch(`${gateway.url}${url.pathname}${url.search}`, {
             method: request.method,
             headers,
             body,
             signal: request.signal,
             redirect: 'error',
           });
+          // HTTP transport headers and Origin-Agent-Cluster do not belong to our
+          // custom scheme. Electron 44 crashes when loading a custom-scheme
+          // document with Origin-Agent-Cluster: ?1; keep CSP and COOP intact.
+          const responseHeaders = new Headers(response.headers);
+          for (const name of [
+            'origin-agent-cluster',
+            'connection',
+            'keep-alive',
+            'transfer-encoding',
+          ])
+            responseHeaders.delete(name);
+          return new Response(response.body, { status: response.status, headers: responseHeaders });
         } catch {
           return Response.json(
             { error: '本机模型服务暂时不可用，请重新打开应用' },

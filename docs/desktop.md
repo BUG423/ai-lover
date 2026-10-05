@@ -18,7 +18,7 @@ npm run desktop:build
 
 版本号随 `package.json` 自动更新。`npm run desktop:start` 用于本机预览；`npm run desktop:smoke` 验证启动、本机 API、网络隔离和跨进程数据留存，需要先执行 `npm run desktop:prepare`。
 
-GitHub 的 Windows runner 会原生构建并执行桌面 smoke。Linux 开发机可以交叉生成 Windows 产物；Linux 不作为交付平台。安装程序未配置代码签名，Windows 可能显示未知发布者提示。
+GitHub 的 Windows runner 会原生构建并执行桌面 smoke。Linux 开发机交叉构建完整 Windows 安装程序还需要 Wine；Linux 不作为交付平台。安装程序未配置代码签名，Windows 可能显示未知发布者提示。
 
 ## 数据与安全
 

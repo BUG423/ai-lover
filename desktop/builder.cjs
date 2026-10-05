@@ -13,6 +13,7 @@ module.exports = {
     'web/icon-192.png',
     'web/icon-512.png',
     'web/manifest.webmanifest',
+    '!node_modules/**/*',
   ],
   asar: true,
   npmRebuild: false,
@@ -24,7 +25,7 @@ module.exports = {
     ],
     icon: 'public/icon-512.png',
     artifactName: 'AI-Lover-${version}-Windows-${arch}.${ext}',
-    // Enables reproducible Linux cross-builds without Wine or signing credentials.
+    // No signing credentials or executable resource rewrite are needed.
     signAndEditExecutable: false,
   },
   nsis: {

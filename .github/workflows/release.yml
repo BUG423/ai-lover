@@ -39,7 +39,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run desktop:build
-      - run: npm run desktop:smoke
+      - run: npm run desktop:smoke -- "artifacts/windows/win-unpacked/AI Lover.exe"
       - run: python scripts/audit-secrets.py --history artifacts/windows/win-unpacked
       - uses: actions/upload-artifact@v4
         with:

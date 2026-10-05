@@ -7,11 +7,18 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const profile = await mkdtemp(join(tmpdir(), 'ai-lover-desktop-smoke-'));
+const packagedExecutable = process.argv[2] ? resolve(process.argv[2]) : undefined;
 let application;
 async function launch() {
   application = await electron.launch({
-    args: [resolve(root, 'desktop-build')],
-    env: { ...process.env, AI_LOVER_SMOKE_PROFILE: profile },
+    ...(packagedExecutable ? { executablePath: packagedExecutable } : {}),
+    args: packagedExecutable ? [] : [resolve(root, 'desktop-build')],
+    env: {
+      ...process.env,
+      AI_LOVER_SMOKE_PROFILE: profile,
+      APPDATA: profile,
+      XDG_CONFIG_HOME: profile,
+    },
     timeout: 30_000,
   });
   const window = await application.firstWindow();
@@ -35,6 +42,13 @@ try {
     }
   });
   assert.equal(outside, 'blocked');
+  await window.locator('.main-nav').getByRole('button', { name: '设置', exact: true }).click();
+  await window.getByLabel('API 密钥', { exact: true }).fill('tp-desktop-smoke');
+  await window.getByRole('button', { name: '保存设置', exact: true }).click();
+  await window.getByText('设置已保存，API Key 已在本机加密存储', { exact: true }).waitFor();
+  const storedSettings = await window.evaluate(() => localStorage.getItem('zhixin.settings.v1'));
+  assert.ok(storedSettings && JSON.parse(storedSettings).secret?.ciphertext);
+  assert.equal(storedSettings.includes('tp-desktop-smoke'), false);
   const initial = await window.evaluate(() => localStorage.getItem('zhixin.data.v1'));
   assert.ok(initial && JSON.parse(initial).companions.length > 0);
   // Real localStorage and IndexedDB continuity over a fresh Electron process.
@@ -59,6 +73,11 @@ try {
   await application.close();
   application = undefined;
   window = await launch();
+  await window.locator('.main-nav').getByRole('button', { name: '设置', exact: true }).click();
+  assert.equal(
+    await window.getByLabel('API 密钥', { exact: true }).inputValue(),
+    'tp-desktop-smoke',
+  );
   assert.equal(await window.evaluate(() => localStorage.getItem('desktop-smoke')), 'persistent');
   assert.equal(await window.evaluate(() => localStorage.getItem('zhixin.data.v1')), initial);
   const indexedValue = await window.evaluate(
@@ -79,7 +98,7 @@ try {
   );
   assert.equal(indexedValue, 'persistent');
   console.log(
-    'Desktop smoke passed: startup, API, secure origin, isolation, network blocking, restart persistence.',
+    'Desktop smoke passed: startup, API, secure origin, isolation, network blocking, restart persistence, encrypted-key restore.',
   );
 } finally {
   await application?.close();
