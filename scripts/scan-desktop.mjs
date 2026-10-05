@@ -1,6 +1,6 @@
 import { extractFile, listPackage } from '@electron/asar';
 import { readFile, readdir } from 'node:fs/promises';
-import { resolve, relative } from 'node:path';
+import { resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -42,7 +42,9 @@ export async function scanDesktopPayload(target) {
     for (const path of listPackage(target)) {
       const name = path.replace(/^[/\\]/u, '').replaceAll('\\', '/');
       if (['web', 'web/assets'].includes(name)) continue;
-      validate(name, extractFile(target, name), secrets);
+      // ASAR resolves filenames using the host path separator. Keep the allowlist
+      // portable, but pass native paths when reading the archive on Windows.
+      validate(name, extractFile(target, name.split('/').join(sep)), secrets);
       count++;
     }
   } else {
