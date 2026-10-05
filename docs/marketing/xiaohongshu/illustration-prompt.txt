@@ -1,0 +1,9 @@
+Use case: ads-marketing
+Asset type: decorative raster insert for Chinese AI companion app campaign cards and README.
+Primary request: create a charming premium editorial illustration of two small rounded speech bubbles gently leaning toward a soft cream heart, suggesting listening and companionship. This is an abstract decoration, not an app interface or logo.
+Style/medium: tactile matte clay and subtly textured paper, restrained contemporary 3D illustration.
+Composition/framing: a compact diagonal cluster, complete objects with generous transparent margins, readable at small size.
+Lighting/mood: soft daylight, calm and warm, delicate shadows contained within the object cluster.
+Color palette: sage green #8eab92 and #507661, warm cream #fffaf1, tiny muted blush accent.
+Materials/textures: fine paper grain, soft rounded edges, no glossy plastic.
+Constraints: genuinely transparent background, no text, no letters, no watermark, no device, no people, no invented app interface. Speech bubbles are entirely empty.
