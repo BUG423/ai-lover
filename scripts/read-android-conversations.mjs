@@ -65,14 +65,21 @@ function execute(command, args) {
     timeout: 30_000,
     maxBuffer: 16 * 1024 * 1024,
   });
-  if (result.error || result.status !== 0) throw new Error('ADB / 本机读取工具执行失败');
+  if (result.error || result.status !== 0) {
+    const name = basename(command === '/init' ? args[0] : command);
+    throw new Error(`本机读取工具 ${name} 执行失败（${result.error?.code ?? result.status}）`);
+  }
   return result.stdout.trim();
 }
 
 function adbInvoke(adb, args) {
+  const port = process.env.ADB_PORT;
+  if (port && (!/^\d{1,5}$/u.test(port) || Number(port) < 1 || Number(port) > 65535))
+    throw new Error('ADB_PORT 必须是有效端口号');
+  const adbArgs = port ? ['-P', port, ...args] : args;
   return adb.endsWith('.exe') && process.platform !== 'win32' && existsSync('/init')
-    ? execute('/init', [adb, basename(adb), ...args])
-    : execute(adb, args);
+    ? execute('/init', [adb, basename(adb), ...adbArgs])
+    : execute(adb, adbArgs);
 }
 
 async function snapshotDevice() {
@@ -94,21 +101,9 @@ async function snapshotDevice() {
   if (!device) throw new Error('未发现已授权设备；请连接 OPPO 并允许 USB 调试');
   if (devices.length > 1 && !requested) throw new Error('连接了多台设备，请设置 ANDROID_SERIAL');
   const selected = ['-s', device[1]];
-  let pid;
-  try {
-    pid = adbInvoke(adb, [...selected, 'shell', 'pidof', 'com.zhixin.ailover']);
-  } catch {
-    adbInvoke(adb, [
-      ...selected,
-      'shell',
-      'am',
-      'start',
-      '-W',
-      '-n',
-      'com.zhixin.ailover/.MainActivity',
-    ]);
-    pid = adbInvoke(adb, [...selected, 'shell', 'pidof', 'com.zhixin.ailover']);
-  }
+  // OPPO may pause background WebViews; bring the owned application to the foreground.
+  adbInvoke(adb, [...selected, 'shell', 'am', 'start', '-n', 'com.zhixin.ailover/.MainActivity']);
+  const pid = adbInvoke(adb, [...selected, 'shell', 'pidof', 'com.zhixin.ailover']);
   const sockets = adbInvoke(adb, [...selected, 'shell', 'cat', '/proc/net/unix']);
   const socket = `webview_devtools_remote_${pid}`;
   if (!sockets.includes(socket)) throw new Error('手机应用未开放 WebView 调试，请使用测试安装包');

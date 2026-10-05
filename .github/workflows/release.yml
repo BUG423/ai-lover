@@ -22,9 +22,9 @@ jobs:
       - run: python3 scripts/audit-secrets.py --history
       - run: npm run format:check
       - run: npm test
-      - run: npm run build
+      - run: npm run build:ui
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - run: npm run test:ui
   windows:
     needs: verify
     runs-on: windows-latest
@@ -38,8 +38,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run desktop:build
-      - run: npm run desktop:smoke -- "artifacts/windows/win-unpacked/AI Lover.exe"
+      - run: npm run windows:build
+      - run: npm run windows:smoke -- "artifacts/windows/win-unpacked/AI Lover.exe"
       - run: python scripts/audit-secrets.py --history artifacts/windows/win-unpacked
       - uses: actions/upload-artifact@v4
         with:
@@ -82,7 +82,7 @@ jobs:
           printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$ANDROID_TEST_KEYSTORE_PATH"
           chmod 600 "$ANDROID_TEST_KEYSTORE_PATH"
       - run: npm run android:build
-      - run: cd android && ./gradlew lintDebug --console=plain
+      - run: cd apps/android && ./gradlew lintDebug --console=plain
       - name: Apply and verify established APK signing identity
         env:
           ANDROID_BUILD_TOOLS_VERSION: 35.0.0
@@ -123,4 +123,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(node -p 'require("./package.json").version')
-          gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --title "AI Lover $GITHUB_REF_NAME" --notes-file "docs/release-$version.md"
+          gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --title "AI Lover $GITHUB_REF_NAME" --notes-file "docs/releases/$version.md"

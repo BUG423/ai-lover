@@ -1,5 +1,7 @@
 node_modules
-dist
+.build
+apps/android
+artifacts
 package-lock.json
 playwright-report
 test-results

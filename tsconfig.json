@@ -14,13 +14,12 @@
     "types": ["vite/client", "node"]
   },
   "include": [
-    "src",
-    "server",
-    "shared",
+    "packages",
+    "apps/windows",
     "tests",
     "vite.config.ts",
     "playwright.config.ts",
     "capacitor.config.ts",
-    "desktop"
+    "vitest.config.ts"
   ]
 }

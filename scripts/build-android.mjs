@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const androidDir = fileURLToPath(new URL('../android/', import.meta.url));
+const androidDir = fileURLToPath(new URL('../apps/android/', import.meta.url));
 const command = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
 const buildEnv = { ...process.env };
 const cachedTools = join(homedir(), '.cache', 'ai-lover-tools');
@@ -27,5 +27,8 @@ if (result.error) {
 if (result.status !== 0) process.exit(result.status ?? 1);
 mkdirSync(new URL('../artifacts/', import.meta.url), { recursive: true });
 const apk = new URL('../artifacts/ai-lover-debug.apk', import.meta.url);
-copyFileSync(new URL('../android/app/build/outputs/apk/debug/app-debug.apk', import.meta.url), apk);
+copyFileSync(
+  new URL('../apps/android/app/build/outputs/apk/debug/app-debug.apk', import.meta.url),
+  apk,
+);
 console.log(`安卓测试包：${fileURLToPath(apk)}`);

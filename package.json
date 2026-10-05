@@ -1,26 +1,22 @@
 {
   "name": "ai-lover",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:web": "vite --host 0.0.0.0",
-    "dev:server": "tsx watch server/index.ts",
+    "dev": "npm run windows:start",
     "typecheck": "tsc --noEmit",
-    "build": "npm run typecheck && vite build",
-    "start": "tsx server/index.ts",
-    "android:sync": "npm run build && cap sync android",
+    "build:ui": "npm run typecheck && vite build",
+    "android:sync": "npm run build:ui && cap sync android",
     "android:build": "npm run android:sync && node scripts/build-android.mjs",
+    "windows:prepare": "npm run build:ui && node scripts/build-windows.mjs",
+    "windows:start": "npm run windows:prepare && electron .build/windows",
+    "windows:build": "npm run windows:prepare && electron-builder --config apps/windows/builder.cjs --win --x64 --publish never && node scripts/scan-windows.mjs artifacts/windows/win-unpacked/resources/app.asar",
+    "windows:smoke": "node scripts/smoke-windows.mjs",
     "test": "vitest run",
-    "test:e2e": "playwright test",
-    "docs:gallery": "node scripts/build-readme-gallery.mjs",
-    "format": "prettier --write src shared server tests scripts desktop public/*.js *.ts *.json .github/workflows/*.yml",
-    "format:check": "prettier --check src shared server tests scripts desktop public/*.js *.ts *.json .github/workflows/*.yml",
-    "desktop:prepare": "npm run build && node scripts/build-desktop.mjs",
-    "desktop:start": "npm run desktop:prepare && electron desktop-build",
-    "desktop:build": "npm run desktop:prepare && electron-builder --config desktop/builder.cjs --win --x64 --publish never && node scripts/scan-desktop.mjs artifacts/windows/win-unpacked/resources/app.asar",
-    "desktop:smoke": "node scripts/smoke-desktop.mjs"
+    "test:ui": "playwright test",
+    "format": "prettier --write packages apps/windows tests scripts *.ts *.json .github/workflows/*.yml",
+    "format:check": "prettier --check packages apps/windows tests scripts *.ts *.json .github/workflows/*.yml"
   },
   "overrides": {
     "xcode": {
@@ -37,7 +33,6 @@
     "lucide-react": "^0.468.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "tsx": "^4.20.5",
     "zod": "^4.1.0"
   },
   "devDependencies": {
@@ -49,7 +44,6 @@
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.2.0",
-    "concurrently": "^9.2.4",
     "electron": "44.5.1",
     "electron-builder": "26.15.3",
     "esbuild": "0.25.12",
