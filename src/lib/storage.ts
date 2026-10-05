@@ -1,4 +1,5 @@
 import { DEFAULT_DRAFT, DEFAULT_SETTINGS } from '../../shared/catalog';
+import { PROVIDERS } from '../../shared/providers';
 import type { ApiSettings, AppData } from '../../shared/types';
 import { dataSchema, settingsSchema } from './validation';
 
@@ -27,17 +28,28 @@ export function loadData(): { data: AppData; warning?: string } {
   try {
     const raw = localStorage.getItem(DATA_KEY);
     if (!raw) return { data: initialData() };
-    const data = dataSchema.parse(JSON.parse(raw));
-    for (const messages of Object.values(data.conversations)) {
-      for (const message of messages)
+    const stored = JSON.parse(raw);
+    // Missing userBackground marks the old prompt; background still belongs to TA.
+    const data = dataSchema.parse(stored);
+    const legacyCompanionIds = new Set(
+      data.companions
+        .filter((_companion, index) => stored.companions[index].userBackground === undefined)
+        .map((companion) => companion.id),
+    );
+    for (const [companionId, messages] of Object.entries(data.conversations)) {
+      for (const message of messages) {
+        // Preserve chat transcripts, but do not learn identity from the old faulty prompt.
+        if (legacyCompanionIds.has(companionId) && message.role === 'assistant')
+          message.excludeFromContext = true;
         if (message.status === 'streaming') message.status = 'stopped';
+      }
     }
     return { data };
   } catch {
-    // Preserve an unreadable payload until the user explicitly resets or imports data.
+    // Preserve an unreadable payload until the user explicitly resets data.
     return {
       data: { version: 1, companions: [], conversations: {}, activeId: null },
-      warning: '本机资料暂时无法读取，原始数据已保留。请导入有效备份或在设置中清除数据。',
+      warning: '本机资料暂时无法读取，原始数据已保留。请勿清除数据，可稍后重试。',
     };
   }
 }
@@ -128,6 +140,36 @@ export async function loadSettings(): Promise<{ settings: ApiSettings; warning?:
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return { settings: { ...DEFAULT_SETTINGS } };
     const parsed = JSON.parse(raw);
+    // Regional keys are not interchangeable. Never decrypt or carry an international
+    // credential into the domestic endpoint when upgrading an older installation.
+    if (
+      parsed.provider === 'siliconflow-international' ||
+      /^https:\/\/api\.siliconflow\.com(?:\/|$)/iu.test(String(parsed.baseUrl ?? ''))
+    ) {
+      const domestic = PROVIDERS.find((provider) => provider.id === 'siliconflow')!;
+      const settings: ApiSettings = {
+        ...DEFAULT_SETTINGS,
+        provider: domestic.id,
+        baseUrl: domestic.url,
+        model: domestic.defaultModel,
+        apiKey: '',
+        temperature:
+          typeof parsed.temperature === 'number' &&
+          Number.isFinite(parsed.temperature) &&
+          parsed.temperature >= 0 &&
+          parsed.temperature <= 2
+            ? parsed.temperature
+            : DEFAULT_SETTINGS.temperature,
+        remember:
+          typeof parsed.remember === 'boolean' ? parsed.remember : DEFAULT_SETTINGS.remember,
+      };
+      const { apiKey: _discardedKey, ...config } = settings;
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(config));
+      return {
+        settings,
+        warning: '已切换为硅基流动国内站，请填写国内站 API Key。',
+      };
+    }
     const settings = settingsSchema.parse({ ...parsed, apiKey: '' });
     if (parsed.secret) {
       try {

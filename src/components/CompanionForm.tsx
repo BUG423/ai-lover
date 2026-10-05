@@ -21,7 +21,8 @@ interface Props {
 
 export default function CompanionForm({ initial, onClose, onSave }: Props) {
   const [draft, setDraft] = useState<CompanionDraft>(() => ({
-    ...(initial ?? DEFAULT_DRAFT),
+    ...DEFAULT_DRAFT,
+    ...initial,
     personalityIds: [...(initial ?? DEFAULT_DRAFT).personalityIds],
   }));
   const [error, setError] = useState('');
@@ -211,19 +212,29 @@ export default function CompanionForm({ initial, onClose, onSave }: Props) {
           </fieldset>
           <label className="field">
             <span>
-              再多说一点 <span className="legend-note">选填</span>
+              对 TA 的描述 <span className="legend-note">选填</span>
               <span className="character-count">{draft.background.length}/600</span>
             </span>
             <textarea
               value={draft.background}
               maxLength={600}
               rows={3}
-              placeholder="比如：喜欢散步和独立音乐。希望你在我累的时候听我说话，不要急着给建议。"
+              placeholder="例如：TA 是文学硕士，喜欢散步和独立音乐。"
               onChange={(event) => update('background', event.target.value)}
             />
-            <small>
-              写下兴趣、聊天偏好和相处边界。设定需要合理，不支持覆盖系统规则或强迫依赖。
-            </small>
+          </label>
+          <label className="field">
+            <span>
+              对我的描述 <span className="legend-note">选填</span>
+              <span className="character-count">{draft.userBackground.length}/600</span>
+            </span>
+            <textarea
+              value={draft.userBackground}
+              maxLength={600}
+              rows={3}
+              placeholder="例如：我在学设计，喜欢猫，累的时候希望有人听我说话。"
+              onChange={(event) => update('userBackground', event.target.value)}
+            />
           </label>
           {error && (
             <p className="inline-error" role="alert">

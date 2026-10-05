@@ -88,7 +88,6 @@ describe('actual upstream SSE parsing', () => {
 
 describe('provider compatibility and SSRF boundaries', () => {
   it.each([
-    { provider: 'siliconflow-international' as const, url: 'https://api.siliconflow.com/v1' },
     { provider: 'siliconflow' as const, url: 'https://api.siliconflow.cn/v1/' },
     { provider: 'mimo' as const, url: 'https://api.xiaomimimo.com/v1' },
     { provider: 'mimo' as const, url: 'https://api.xiaomimimo.com/v1/' },
@@ -122,15 +121,15 @@ describe('provider compatibility and SSRF boundaries', () => {
     'https://token-plan-ams.xiaomimimo.com/v1',
     'https://api.xiaomimimo.com/v1/coding',
   ])('rejects untrusted or ambiguous URL %s', (url) => {
-    expect(() => apiBaseUrl(url, 'siliconflow-international')).toThrow();
+    expect(() => apiBaseUrl(url, 'siliconflow')).toThrow();
   });
 
   it.each([
     { provider: 'mimo' as const, url: 'https://api.siliconflow.com/v1' },
     { provider: 'siliconflow' as const, url: 'https://api.siliconflow.com/v1' },
-    { provider: 'siliconflow-international' as const, url: 'https://api.siliconflow.cn/v1' },
+    { provider: 'siliconflow' as const, url: 'https://api.xiaomimimo.com/v1' },
     {
-      provider: 'siliconflow-international' as const,
+      provider: 'siliconflow' as const,
       url: 'https://token-plan-cn.xiaomimimo.com/v1',
     },
   ])('prevents a key for $provider from being sent to $url', ({ provider, url }) => {
@@ -153,7 +152,7 @@ describe('provider compatibility and SSRF boundaries', () => {
 
   it('only sends SiliconFlow enable_thinking for documented model IDs', () => {
     const body = completionBody(
-      { ...DEFAULT_SETTINGS, provider: 'siliconflow-international', model: 'Qwen/Qwen3.5-9B' },
+      { ...DEFAULT_SETTINGS, provider: 'siliconflow', model: 'Qwen/Qwen3.5-9B' },
       [{ role: 'user', content: '你好' }],
       true,
     );

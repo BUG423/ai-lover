@@ -11,7 +11,7 @@
 | `POST /api/test`   | `{ settings: ApiSettings }`                              | `{ ok: true, latencyMs: number }` |
 | `POST /api/chat`   | `{ settings, companion, messages: [{ role, content }] }` | `text/event-stream`               |
 
-只支持小米 MiMo、硅基流动国内站及国际站，默认使用小米 MiMo 的 `mimo-v2.6-flash`。MiMo 请求 `/v1/models`，过滤名称中的 `-asr`、`-tts` 等语音专用模型；硅基流动请求 `/v1/models?sub_type=chat`。模型列表实时读取当前账户可见模型，不替用户切换供应商，也不在失败时回退到其他端点。
+只支持小米 MiMo、硅基流动国内站，默认使用小米 MiMo 的 `mimo-v2.6-flash`。MiMo 请求 `/v1/models`，过滤名称中的 `-asr`、`-tts` 等语音专用模型；硅基流动请求 `/v1/models?sub_type=chat`。模型列表实时读取当前账户可见模型，不替用户切换供应商，也不在失败时回退到其他端点。
 
 测试接口真实调用选定模型的 `/v1/chat/completions`：MiMo 最多输出 32 tokens，硅基流动最多 16 tokens。模型没有返回可见文本或输出被截断时不会报告成功。此测试会消耗少量用户账户额度。
 
@@ -52,7 +52,6 @@
 | `mimo` · Token Plan 默认    | `https://token-plan-cn.xiaomimimo.com/v1`（可选 sgp / ams 集群） | `api-key: <套餐 Key>`             |
 | `mimo` · 普通 API           | `https://api.xiaomimimo.com/v1`                                  | `api-key: <普通 API Key>`         |
 | `siliconflow`               | `https://api.siliconflow.cn/v1`                                  | `Authorization: Bearer <API Key>` |
-| `siliconflow-international` | `https://api.siliconflow.com/v1`                                 | `Authorization: Bearer <API Key>` |
 
 允许末尾斜杠，不接受任意自定义端点、供应商与域名不匹配、内网地址、用户名、密码、查询、片段或其他 API 路径；重定向一律禁用。原来的 `custom`、OpenAI 端点及 `ALLOWED_API_ORIGINS` 扩展均已移除，环境变量无法恢复任意端点信任。
 

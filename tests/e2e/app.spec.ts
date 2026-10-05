@@ -12,7 +12,7 @@ test('restricts providers and isolates credentials, models and account types', a
   await page.goto('/');
   await navigate(page, '设置');
   const providers = page.getByRole('group', { name: '模型服务商' });
-  await expect(providers.getByRole('button')).toHaveCount(3);
+  await expect(providers.getByRole('button')).toHaveCount(2);
   await expect(providers.getByRole('button', { name: /小米 MiMo/ })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -41,37 +41,6 @@ test('restricts providers and isolates credentials, models and account types', a
   expect(requests).toBe(1);
 });
 
-test('clearing data discards a delayed backup import', async ({ page }) => {
-  await page.goto('/');
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('zhixin.data.v1')))
-    .not.toBeNull();
-  const backup = await page.evaluate(() => localStorage.getItem('zhixin.data.v1'));
-  await page.evaluate(() => {
-    const original = File.prototype.text;
-    File.prototype.text = async function () {
-      (window as unknown as Record<string, boolean>).importStarted = true;
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const result = await original.call(this);
-      (window as unknown as Record<string, boolean>).importFinished = true;
-      return result;
-    };
-  });
-  await navigate(page, '设置');
-  await page.getByLabel('导入聊天数据文件').setInputFiles({
-    name: 'backup.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(backup!),
-  });
-  await page.getByRole('dialog').getByRole('button', { name: '导入并替换', exact: true }).click();
-  await page.waitForFunction(() => (window as unknown as Record<string, boolean>).importStarted);
-  await page.getByRole('button', { name: '清除所有数据', exact: true }).click();
-  await page.getByRole('dialog').getByRole('button', { name: '清除所有数据', exact: true }).click();
-  await page.waitForFunction(() => (window as unknown as Record<string, boolean>).importFinished);
-  await expect(page.getByRole('status')).toContainText('已清除');
-  await page.reload();
-  await expect(page.getByRole('heading', { name: '有些话，想说给懂你的人听' })).toBeVisible();
-});
 async function navigate(page: Page, label: string) {
   await page
     .locator('nav:visible')
@@ -107,7 +76,8 @@ test('creates and edits an animal companion, restores it and deletes only that c
   await dialog.getByRole('textbox', { name: /动物种类/ }).fill('狐狸');
   await dialog.getByRole('button', { name: /清冷慢热/ }).click();
   await dialog.getByRole('button', { name: /离异后/ }).click();
-  await dialog.getByRole('textbox', { name: /再多说一点/ }).fill('喜欢听我讲生活里的小事。');
+  await dialog.getByRole('textbox', { name: /对 TA 的描述/ }).fill('文学硕士，喜欢钢琴。');
+  await dialog.getByRole('textbox', { name: /对我的描述/ }).fill('我是工程师，喜欢爬山。');
   await dialog.getByRole('button', { name: '开始认识 TA' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('region', { name: '与阿狸的会话' })).toBeVisible();
@@ -119,6 +89,12 @@ test('creates and edits an animal companion, restores it and deletes only that c
     .getByRole('dialog')
     .getByRole('textbox', { name: /怎么称呼/ })
     .fill('小狐狸');
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: /对 TA 的描述/ })).toHaveValue(
+    '文学硕士，喜欢钢琴。',
+  );
+  await expect(page.getByRole('dialog').getByRole('textbox', { name: /对我的描述/ })).toHaveValue(
+    '我是工程师，喜欢爬山。',
+  );
   await page.getByRole('button', { name: '保存设定', exact: true }).click();
   await expect(page.getByRole('region', { name: '与小狐狸的会话' })).toBeVisible();
   await navigate(page, '通讯录');
@@ -130,7 +106,7 @@ test('creates and edits an animal companion, restores it and deletes only that c
   expect(errors).toEqual([]);
 });
 
-test('saves encrypted credentials, reads models, verifies the selected model and exports without credentials', async ({
+test('saves encrypted credentials, reads models, verifies the selected model and removes backup controls', async ({
   page,
 }) => {
   await page.route('**/api/models', (route) =>
@@ -155,16 +131,12 @@ test('saves encrypted credentials, reads models, verifies the selected model and
   await page.getByRole('button', { name: '测试连接', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('连接成功');
   expect(testedModel).toBe('test/model');
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.getByRole('button', { name: '导出备份', exact: true }).click(),
-  ]);
-  const stream = await download.createReadStream();
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream!) chunks.push(chunk);
-  const backup = Buffer.concat(chunks).toString();
-  expect(backup).not.toContain(KEY);
-  expect(JSON.parse(backup).companions).toHaveLength(1);
+  await expect(page.getByRole('button', { name: /导出备份|导入备份/ })).toHaveCount(0);
+  await expect(page.locator('.provider-help-links a')).toContainText(['小米 MiMo', '硅基流动']);
+  await expect(page.locator('.provider-help-links a').nth(1)).toHaveAttribute(
+    'href',
+    'https://cloud.siliconflow.cn/account/ak',
+  );
 });
 
 test('streams real event payloads into chat and keeps each companion context separate', async ({
@@ -235,22 +207,6 @@ test('offers retry after API failure without duplicating the user message', asyn
   ).toBeVisible();
   expect(attempts).toBe(2);
   await expect(page.locator('.message-row.outgoing')).toHaveCount(1);
-});
-
-test('rejects malformed imports without replacing existing companions', async ({ page }) => {
-  await page.goto('/');
-  await navigate(page, '设置');
-  await page.getByLabel('导入聊天数据文件').setInputFiles({
-    name: 'broken.json',
-    mimeType: 'application/json',
-    buffer: Buffer.from(
-      '{"version":1,"companions":[],"conversations":{"orphan":[]},"activeId":null}',
-    ),
-  });
-  await page.getByRole('button', { name: '导入并替换', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('不存在的对象');
-  await navigate(page, '通讯录');
-  await expect(page.getByRole('heading', { name: '小满', exact: true })).toBeVisible();
 });
 
 test('mobile navigation, modal keyboard dismissal and chat return work without horizontal overflow', async ({
@@ -393,4 +349,77 @@ test('clearing data invalidates an API key save already waiting for encryption',
   await page.reload();
   await navigate(page, '设置');
   await expect(page.getByRole('textbox', { name: 'API 密钥', exact: true })).toHaveValue('');
+});
+
+test('upgrades old role-confused replies without losing chat history', async ({ page }) => {
+  let sentMessages: { role: string; content: string }[] = [];
+  await page.route('**/api/chat', (route) => {
+    sentMessages = route.request().postDataJSON().messages;
+    return route.fulfill({
+      contentType: 'text/event-stream',
+      body: 'data: {"type":"delta","text":"我是文学硕士，喜欢钢琴。"}\n\ndata: {"type":"done","firstTokenMs":20,"totalMs":30}\n\n',
+    });
+  });
+  await page.goto('/');
+  await configure(page);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('zhixin.data.v1')))
+    .not.toBeNull();
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('legacy-role-seeded')) return;
+    sessionStorage.setItem('legacy-role-seeded', 'true');
+    const data = JSON.parse(localStorage.getItem('zhixin.data.v1')!);
+    delete data.companions[0].userBackground;
+    data.companions[0].background = '文学硕士，喜欢钢琴。';
+    data.conversations[data.activeId] = [
+      {
+        id: crypto.randomUUID(),
+        role: 'user',
+        content: '你喜欢什么？',
+        createdAt: Date.now() - 2000,
+        status: 'complete',
+      },
+      {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: '你的朋友喜欢钢琴，你有文学硕士学历。',
+        createdAt: Date.now() - 1000,
+        status: 'complete',
+      },
+    ];
+    localStorage.setItem('zhixin.data.v1', JSON.stringify(data));
+  });
+  await page.reload();
+  await openChat(page);
+  await expect(
+    page
+      .getByRole('region', { name: '与小满的会话' })
+      .getByText('你的朋友喜欢钢琴，你有文学硕士学历。', { exact: true }),
+  ).toBeVisible();
+  await page.getByRole('textbox', { name: '发送给小满的消息' }).fill('你是什么学历？');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect(
+    page
+      .getByRole('region', { name: '与小满的会话' })
+      .getByText('我是文学硕士，喜欢钢琴。', { exact: true }),
+  ).toBeVisible();
+  expect(sentMessages).toEqual([
+    { role: 'user', content: '你喜欢什么？' },
+    { role: 'user', content: '你是什么学历？' },
+  ]);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const data = JSON.parse(localStorage.getItem('zhixin.data.v1')!);
+        return data.conversations[data.activeId].length;
+      }),
+    )
+    .toBe(4);
+  await page.reload();
+  await openChat(page);
+  await page.getByRole('textbox', { name: '发送给小满的消息' }).fill('还记得你的爱好吗？');
+  await page.getByRole('button', { name: '发送', exact: true }).click();
+  await expect.poll(() => sentMessages.at(-1)?.content).toBe('还记得你的爱好吗？');
+  expect(sentMessages.some((message) => message.content === '我是文学硕士，喜欢钢琴。')).toBe(true);
+  expect(sentMessages.some((message) => message.content.includes('你的朋友'))).toBe(false);
 });

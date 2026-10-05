@@ -8,7 +8,7 @@ const knownPersonalities = new Set(PERSONALITIES.map((item) => item.id));
 
 export const settingsSchema = z
   .object({
-    provider: z.enum(['mimo', 'siliconflow', 'siliconflow-international']),
+    provider: z.enum(['mimo', 'siliconflow']),
     baseUrl: z.string().trim().min(1).max(300),
     apiKey: z
       .string()
@@ -44,6 +44,7 @@ export const companionSchema = z
       .refine((ids) => new Set(ids).size === ids.length, '不能重复选择性格'),
     stage: stages,
     background: z.string().trim().max(600),
+    userBackground: z.string().trim().max(600).default(''),
     avatar: z.string().max(50),
     color: z.string().max(30),
     createdAt: z.number().finite().nonnegative(),

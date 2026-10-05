@@ -11,11 +11,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: python3 scripts/audit-secrets.py --history
       - run: npm run format:check
       - run: npm test
       - run: npm run build
@@ -29,6 +32,26 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:build
+      - run: npm run desktop:smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ai-lover-windows
+          path: |
+            artifacts/windows/*Setup.exe
+            artifacts/windows/*.zip
+          if-no-files-found: error
+          retention-days: 30
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -49,6 +72,15 @@ jobs:
       - run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
       - run: npm ci
       - run: npm run android:sync
+      - name: Restore test APK signing identity when available
+        env:
+          ANDROID_TEST_KEYSTORE: ${{ secrets.ANDROID_TEST_KEYSTORE }}
+        run: |
+          if [ -n "$ANDROID_TEST_KEYSTORE" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+            chmod 600 "$HOME/.android/debug.keystore"
+          fi
       - run: cd android && ./gradlew testDebugUnitTest lintDebug assembleDebug --console=plain
       - uses: actions/upload-artifact@v4
         with:

@@ -4,7 +4,7 @@
 
 ## 对本项目的直接结论
 
-AI Lover 将 **小米 MiMo 作为默认供应商**，并限定另外两个入口为硅基流动国内站、国际站。根据 2026-10-04 用户关于已获小米授权的声明，本轮实现以 Token Plan 中国集群为默认，另支持新加坡、阿姆斯特丹集群以及普通按量 API `https://api.xiaomimimo.com/v1`；候选默认模型为 `mimo-v2.6-flash`。Token Plan 与普通 API 的地址、凭据和费用说明分开配置，切换账户类型或区域不复用旧 Key。
+AI Lover 将 **小米 MiMo 作为默认供应商**，另支持硅基流动国内站。根据 2026-10-04 用户关于已获小米授权的声明，本轮实现以 Token Plan 中国集群为默认，另支持新加坡、阿姆斯特丹集群以及普通按量 API `https://api.xiaomimimo.com/v1`；候选默认模型为 `mimo-v2.6-flash`。Token Plan 与普通 API 的地址、凭据和费用说明分开配置，切换账户类型或区域不复用旧 Key。
 
 **Token Plan Key 与普通 API Key 不可混用。**官方公开的一般套餐规则还限定 Token Plan 的使用场景。通过 Playwright 访问 [Token Plan 个人版中文页面](https://mimo.mi.com/docs/zh-CN/tokenplan/Token%20Plan/subscription)，在“套餐使用”段核验到原文：
 

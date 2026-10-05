@@ -6,10 +6,10 @@ import type { ApiSettings } from '../shared/types';
 
 const settings: ApiSettings = {
   ...DEFAULT_SETTINGS,
-  provider: 'siliconflow-international',
+  provider: 'siliconflow',
   apiKey: 'private-test-key',
   model: 'Qwen/Qwen3.5-9B',
-  baseUrl: 'https://api.siliconflow.com/v1',
+  baseUrl: 'https://api.siliconflow.cn/v1',
 };
 const companion = { ...DEFAULT_DRAFT, id: 'test', name: '小雨', createdAt: 1, updatedAt: 1 };
 const payload = { settings, companion, messages: [{ role: 'user', content: '今天有点难过' }] };
@@ -85,6 +85,25 @@ function events(text: string): Record<string, unknown>[] {
 }
 
 describe('HTTP API contracts', () => {
+  it.each(['/api/models', '/api/test', '/api/chat'])(
+    'rejects the removed international provider and domain at %s before sending a key',
+    async (path) => {
+      const upstream = mockFetch(() => {
+        throw new Error('Must not fetch');
+      });
+      const base = await serve({ fetch: upstream });
+      for (const provider of ['siliconflow-international', 'siliconflow', 'mimo']) {
+        const response = await post(base, path, {
+          ...payload,
+          settings: { ...settings, provider, baseUrl: 'https://api.siliconflow.com/v1' },
+        });
+        expect(response.status).toBe(400);
+        expect(await response.text()).not.toContain(settings.apiKey);
+      }
+      expect(upstream).not.toHaveBeenCalled();
+    },
+  );
+
   it('provides health and API 404 without exposing settings', async () => {
     const base = await serve();
     const response = await fetch(`${base}/api/health`);
@@ -96,7 +115,7 @@ describe('HTTP API contracts', () => {
 
   it('fetches real provider model IDs with redirects blocked and an explicit bearer key', async () => {
     const upstream = mockFetch((url, init) => {
-      expect(url).toBe('https://api.siliconflow.com/v1/models?sub_type=chat');
+      expect(url).toBe('https://api.siliconflow.cn/v1/models?sub_type=chat');
       expect(init.redirect).toBe('error');
       expect(init.headers).toHaveProperty('Authorization', 'Bearer private-test-key');
       return jsonResponse({ data: [{ id: 'b' }, { id: 'a' }, { id: 'a' }, { id: 42 }] });
@@ -236,7 +255,7 @@ describe('HTTP API contracts', () => {
 
   it.each(
     ['/api/models', '/api/test', '/api/chat'].flatMap((path) =>
-      ['siliconflow', 'siliconflow-international'].map((provider) => ({ path, provider })),
+      ['siliconflow'].map((provider) => ({ path, provider })),
     ),
   )('does not send a Token Plan key to $provider at $path', async ({ path, provider }) => {
     const upstream = mockFetch(() => {

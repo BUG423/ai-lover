@@ -448,9 +448,8 @@ public class ModelGatewayPlugin extends Plugin {
         if (base.endsWith("/")) base = base.substring(0, base.length() - 1);
         boolean mimo = "mimo".equals(provider);
         boolean valid = mimo ? MIMO_BASES.contains(base)
-            : "siliconflow".equals(provider) ? "https://api.siliconflow.cn/v1".equals(base)
-            : "siliconflow-international".equals(provider) && "https://api.siliconflow.com/v1".equals(base);
-        if (!valid) throw new GatewayException("API 地址与服务不匹配；仅支持小米 MiMo 和硅基流动官方端点", 400);
+            : "siliconflow".equals(provider) && "https://api.siliconflow.cn/v1".equals(base);
+        if (!valid) throw new GatewayException("API 地址与服务不匹配；仅支持小米 MiMo 和硅基流动国内站官方端点", 400);
         String apiKey = requiredString(settings, "apiKey", 512);
         for (int i = 0; i < apiKey.length(); i++) {
             char character = apiKey.charAt(i);

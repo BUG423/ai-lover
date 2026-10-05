@@ -15,7 +15,8 @@ export const draftSchema = z
       .max(3, '最多选择三种性格')
       .refine((ids) => new Set(ids).size === ids.length, '性格不可重复'),
     stage: z.enum(['new', 'flirting', 'love', 'steady', 'separated', 'divorced']),
-    background: z.string().trim().max(600, '补充说明最多 600 个字'),
+    background: z.string().trim().max(600, '对 TA 的描述最多 600 个字'),
+    userBackground: z.string().trim().max(600, '对我的描述最多 600 个字').default(''),
     avatar: z.string().refine((s) => AVATARS.includes(s), '请选择已有头像'),
     color: z.string().refine((s) => COLORS.includes(s), '请选择已有颜色'),
   })
@@ -37,6 +38,7 @@ const messageSchema = z
     createdAt: z.number().nonnegative().finite(),
     status: z.enum(['complete', 'streaming', 'error', 'stopped']),
     error: z.string().max(2000).optional(),
+    excludeFromContext: z.boolean().optional(),
   })
   .refine((m) => m.role !== 'user' || m.content.length <= 4000, '用户消息最多 4000 个字')
   .refine((m) => m.role !== 'user' || m.status === 'complete', '用户消息状态不正确')
@@ -62,7 +64,7 @@ export const dataSchema = z
   });
 export const settingsSchema = z
   .object({
-    provider: z.enum(['mimo', 'siliconflow', 'siliconflow-international']),
+    provider: z.enum(['mimo', 'siliconflow']),
     baseUrl: z
       .string()
       .trim()
@@ -80,7 +82,7 @@ export const settingsSchema = z
     remember: z.boolean(),
   })
   .refine((settings) => validProviderBaseUrl(settings.provider, settings.baseUrl), {
-    message: '只支持小米 MiMo 和硅基流动的官方接口',
+    message: '只支持小米 MiMo 和硅基流动国内站的官方接口',
     path: ['baseUrl'],
   })
   .superRefine((settings, ctx) => {

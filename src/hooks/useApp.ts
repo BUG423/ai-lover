@@ -8,14 +8,12 @@ import {
   persistData,
   persistSettings,
 } from '../lib/storage';
-import { dataSchema, draftSchema, settingsSchema, validationError } from '../lib/validation';
+import { draftSchema, settingsSchema, validationError } from '../lib/validation';
 import { consumeEvents } from '../lib/sse';
 import { recentMessages } from '../../shared/context';
 import { mimoEndpoint } from '../../shared/providers';
 import { Capacitor } from '@capacitor/core';
 import { nativePost } from '../lib/nativeGateway';
-import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 
 type Notice = { kind: 'success' | 'error' | 'info'; message: string };
 async function readError(response: Response): Promise<string> {
@@ -92,7 +90,10 @@ export default function useApp() {
       try {
         persistData(data);
       } catch {
-        setNotice({ kind: 'error', message: '本机存储空间不足，最新聊天尚未保存。请导出备份。' });
+        setNotice({
+          kind: 'error',
+          message: '本机存储空间不足，最新聊天尚未保存，请释放设备空间。',
+        });
       }
     }, 250);
     return () => clearTimeout(timer);
@@ -120,7 +121,7 @@ export default function useApp() {
     if (canPersist.current) return true;
     setNotice({
       kind: 'error',
-      message: '原始资料读取失败，先导入有效备份或清除数据后再操作，以免覆盖。',
+      message: '原始资料读取失败，数据已保留，请先修复本机存储或在设置中清除数据。',
     });
     return false;
   }
@@ -229,7 +230,7 @@ export default function useApp() {
     if (!retry && history.length > 4998) {
       setNotice({
         kind: 'info',
-        message: '这段聊天已达到本机 5000 条记录上限，请先导出备份，再清空聊天后继续。',
+        message: '这段聊天已达到 5000 条记录上限，请创建新对象继续聊天。',
       });
       return;
     }
@@ -250,7 +251,7 @@ export default function useApp() {
       });
     const context = recentMessages(
       (settingsRef.current.remember ? history : history.slice(-1))
-        .filter((m) => m.status === 'complete' && m.content)
+        .filter((m) => m.status === 'complete' && m.content && !m.excludeFromContext)
         .map(({ role, content }) => ({ role, content })),
     );
     const messageId = crypto.randomUUID();
@@ -381,55 +382,6 @@ export default function useApp() {
       setBusy((old) => ({ ...old, [kind]: false }));
     }
   }
-  async function exportData() {
-    const blob = new Blob([JSON.stringify(dataRef.current)], { type: 'application/json' });
-    if (blob.size > 20 * 1024 * 1024) {
-      setNotice({ kind: 'error', message: '备份超过 20 MB 上限，请减少不需要的记录后重试' });
-      return;
-    }
-    if (Capacitor.isNativePlatform()) {
-      try {
-        const file = await Filesystem.writeFile({
-          path: `知心备份-${new Date().toISOString().slice(0, 10)}.json`,
-          data: await blob.text(),
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8,
-        });
-        await Share.share({ title: '知心聊天备份', url: file.uri, dialogTitle: '保存或分享备份' });
-        setNotice({ kind: 'success', message: '备份已生成，包含对象和聊天记录，不包含 API Key' });
-      } catch (error) {
-        setNotice({ kind: 'error', message: validationError(error) });
-      }
-      return;
-    }
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `知心备份-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice({ kind: 'success', message: '备份已导出，包含对象和聊天记录，不包含 API Key' });
-  }
-  async function importData(file: File) {
-    const epoch = operationEpoch.current;
-    try {
-      if (file.size > 20 * 1024 * 1024) throw new Error('备份文件不能超过 20 MB');
-      const imported = dataSchema.parse(JSON.parse(await file.text()));
-      if (epoch !== operationEpoch.current) return;
-      for (const messages of Object.values(imported.conversations))
-        for (const m of messages) if (m.status === 'streaming') m.status = 'stopped';
-      // Verify storage succeeds before replacing the current in-memory data.
-      persistData(imported);
-      stopGeneration();
-      canPersist.current = true;
-      change(() => imported);
-      setLastMetrics(null);
-      setNotice({ kind: 'success', message: '备份已导入，当前对象与聊天记录已替换' });
-    } catch (error) {
-      if (epoch === operationEpoch.current)
-        setNotice({ kind: 'error', message: validationError(error) });
-    }
-  }
   function clearHistory(id: string) {
     if (!requireWritable()) return;
     if (generation.current?.companionId === id) stopGeneration();
@@ -478,8 +430,6 @@ export default function useApp() {
     testConnection: (input?: ApiSettings) => serviceAction('test', input),
     loadModels: (input?: ApiSettings) => serviceAction('models', input),
     clearModels,
-    exportData,
-    importData,
     clearHistory,
     resetData,
     dismissNotice: () => setNotice(null),

@@ -49,6 +49,7 @@ public class ModelGatewayPluginTest {
         ModelGatewayPlugin.validateSettings(settings("mimo", "https://token-plan-sgp.xiaomimimo.com/v1", "ttp-synthetic-team"));
         ModelGatewayPlugin.validateSettings(settings("mimo", "https://token-plan-ams.xiaomimimo.com/v1", PLAN_KEY));
         ModelGatewayPlugin.validateSettings(settings("mimo", "https://api.xiaomimimo.com/v1", API_KEY));
+        ModelGatewayPlugin.validateSettings(settings("siliconflow", "https://api.siliconflow.cn/v1", API_KEY));
         assertThrows(ModelGatewayPlugin.GatewayException.class,
             () -> ModelGatewayPlugin.validateSettings(settings("mimo", "https://api.xiaomimimo.com/v1", PLAN_KEY)));
         assertThrows(ModelGatewayPlugin.GatewayException.class,
@@ -57,6 +58,16 @@ public class ModelGatewayPluginTest {
             () -> ModelGatewayPlugin.validateSettings(settings("siliconflow", "https://api.siliconflow.cn/v1", PLAN_KEY)));
         assertThrows(ModelGatewayPlugin.GatewayException.class,
             () -> ModelGatewayPlugin.validateSettings(settings("siliconflow-international", "https://api.siliconflow.cn/v1", API_KEY)));
+    }
+
+    @Test
+    public void internationalSiliconFlowNeverReceivesAnyKey() throws Exception {
+        for (String provider : new String[] {"siliconflow", "siliconflow-international", "mimo"}) {
+            ModelGatewayPlugin.GatewayException error = assertThrows(ModelGatewayPlugin.GatewayException.class,
+                () -> ModelGatewayPlugin.validateSettings(settings(provider, "https://api.siliconflow.com/v1", API_KEY)));
+            assertEquals(400, error.status);
+            assertFalse(error.getMessage().contains(API_KEY));
+        }
     }
 
     @Test

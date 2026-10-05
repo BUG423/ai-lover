@@ -1,0 +1,116 @@
+name: Build and publish release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Match release tag to package version
+        run: test "$GITHUB_REF_NAME" = "v$(node -p 'require("./package.json").version')"
+      - run: python3 scripts/audit-secrets.py --history
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+  windows:
+    needs: verify
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:build
+      - run: npm run desktop:smoke
+      - run: python scripts/audit-secrets.py --history artifacts/windows/win-unpacked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            artifacts/windows/*Setup.exe
+            artifacts/windows/*.zip
+          if-no-files-found: error
+          retention-days: 14
+  android:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+      - run: npm ci
+      - name: Restore established test APK signing identity
+        env:
+          ANDROID_TEST_KEYSTORE: ${{ secrets.ANDROID_TEST_KEYSTORE }}
+        run: |
+          test -n "$ANDROID_TEST_KEYSTORE"
+          mkdir -p "$HOME/.android"
+          printf '%s' "$ANDROID_TEST_KEYSTORE" | base64 --decode > "$HOME/.android/debug.keystore"
+          chmod 600 "$HOME/.android/debug.keystore"
+      - run: npm run android:build
+      - run: cd android && ./gradlew lintDebug --console=plain
+      - run: python3 scripts/audit-secrets.py --history artifacts/ai-lover-debug.apk
+      - name: Name Android distribution
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          cp artifacts/ai-lover-debug.apk "artifacts/AI-Lover-$version-Android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: artifacts/AI-Lover-*-Android.apk
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: [windows, android]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - run: node scripts/hash-artifacts.mjs release-assets
+      - name: Publish verified packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --title "AI Lover $GITHUB_REF_NAME" --notes-file "docs/release-$version.md"

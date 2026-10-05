@@ -7,7 +7,10 @@ export interface CompanionDraft {
   animalType: string;
   personalityIds: string[];
   stage: Stage;
+  /** Background facts about the companion, including legacy optional descriptions. */
   background: string;
+  /** Background facts about the user, kept separate from the companion's identity. */
+  userBackground: string;
   avatar: string;
   color: string;
 }
@@ -23,9 +26,11 @@ export interface Message {
   createdAt: number;
   status: 'complete' | 'streaming' | 'error' | 'stopped';
   error?: string;
+  /** Keep the original reply visible while preventing legacy role errors from propagating. */
+  excludeFromContext?: boolean;
 }
 export interface ApiSettings {
-  provider: 'mimo' | 'siliconflow' | 'siliconflow-international';
+  provider: 'mimo' | 'siliconflow';
   baseUrl: string;
   apiKey: string;
   model: string;

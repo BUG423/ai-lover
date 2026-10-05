@@ -9,7 +9,12 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 );
-if ('serviceWorker' in navigator && import.meta.env.PROD && !Capacitor.isNativePlatform()) {
+if (
+  'serviceWorker' in navigator &&
+  import.meta.env.PROD &&
+  !Capacitor.isNativePlatform() &&
+  location.protocol !== 'ai-lover:'
+) {
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/sw.js');
   });

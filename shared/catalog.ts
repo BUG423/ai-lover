@@ -176,6 +176,7 @@ export const DEFAULT_DRAFT: CompanionDraft = {
   personalityIds: ['warm'],
   stage: 'flirting',
   background: '',
+  userBackground: '',
   avatar: '🌷',
   color: 'rose',
 };

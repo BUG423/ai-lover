@@ -8,11 +8,9 @@ import {
   ArrowUp,
   BookOpen,
   Check,
-  CheckCheck,
   ChevronRight,
   CircleHelp,
   Clock3,
-  Download,
   Ellipsis,
   ExternalLink,
   Eye,
@@ -32,7 +30,6 @@ import {
   Sparkles,
   Square,
   Trash2,
-  Upload,
   Users,
   X,
   Zap,
@@ -93,7 +90,6 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const messageEnd = useRef<HTMLDivElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const nativeBack = useRef(() => {});
   nativeBack.current = () => {
     if (confirmation) setConfirmation(null);
@@ -179,6 +175,12 @@ export default function App() {
     setShowMore(false);
     setShowEmoji(false);
   }, [app.activeId]);
+  useEffect(() => {
+    const input = composerRef.current;
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  }, [composer, mobileChat, page]);
 
   const selectCompanion = (id: string) => {
     app.setActiveId(id);
@@ -504,11 +506,6 @@ export default function App() {
                       </div>
                     </div>
                   </header>
-                  <div className="conversation-context">
-                    <Sparkles size={13} />
-                    <span>和 {companion.name} 的专属空间</span>
-                    <span className="context-tag">{personalityLabel(companion).join(' / ')}</span>
-                  </div>
                   <div className="messages-scroll">
                     {app.messages.length === 0 ? (
                       <div className="conversation-welcome">
@@ -517,15 +514,7 @@ export default function App() {
                           <Avatar emoji={companion.avatar} color={companion.color} size="hero" />
                           <span className="orbit-dot two">✧</span>
                         </div>
-                        <span className="welcome-eyebrow">
-                          EVERY CONNECTION STARTS WITH A HELLO
-                        </span>
-                        <h2>和 {companion.name}，慢慢熟悉</h2>
-                        <p>
-                          开心的、平凡的，或者有点难过的。
-                          <br />
-                          生活里的小事，都可以从这里说起。
-                        </p>
+                        <h2>和 {companion.name} 聊聊</h2>
                         <div className="starter-grid">
                           {CONVERSATION_STARTERS.map((starter) => (
                             <button key={starter.label} onClick={() => fillMessage(starter.text)}>
@@ -535,18 +524,9 @@ export default function App() {
                             </button>
                           ))}
                         </div>
-                        <div className="welcome-ai-note">
-                          <Sparkles size={12} />
-                          这是 AI 陪伴，给真实生活多一点温暖
-                        </div>
                       </div>
                     ) : (
                       <div className="message-list">
-                        <div className="history-start">
-                          <span />
-                          故事从这里开始
-                          <span />
-                        </div>
                         {app.messages.map((message, index) => (
                           <div
                             key={message.id}
@@ -611,8 +591,6 @@ export default function App() {
                                       </button>
                                     )}
                                   </>
-                                ) : message.role === 'user' ? (
-                                  <CheckCheck size={12} />
                                 ) : null}
                               </div>
                             </div>
@@ -631,7 +609,7 @@ export default function App() {
                     <button className="demo-banner" onClick={() => selectPage('settings')}>
                       <span>
                         <KeyRound size={14} />
-                        <span>当前为本地演示，配置 API 后即可真实聊天</span>
+                        <span>连接模型后开始聊天</span>
                       </span>
                       <span>
                         去设置
@@ -684,34 +662,12 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          className="composer-inspiration"
-                          onClick={() =>
-                            fillMessage(
-                              CONVERSATION_STARTERS[
-                                Math.floor(Math.random() * CONVERSATION_STARTERS.length)
-                              ].text,
-                            )
-                          }
-                        >
-                          <Sparkles size={16} />
-                          <span>聊点什么</span>
-                        </button>
                       </div>
-                      <span className="composer-status">
-                        {app.busy.chat ? (
-                          <>
-                            <span className="status-dot pulse" />
-                            {companion.name} 正在回复
-                          </>
-                        ) : (
-                          <>
-                            <Leaf size={12} />
-                            慢慢说，我在听
-                          </>
-                        )}
-                      </span>
+                      {app.busy.chat && (
+                        <span className="sr-only" role="status">
+                          {companion.name} 正在回复…
+                        </span>
+                      )}
                     </div>
                     <label className="sr-only" htmlFor="message-input">
                       发送给{companion.name}的消息
@@ -721,8 +677,8 @@ export default function App() {
                       id="message-input"
                       value={composer}
                       maxLength={4000}
-                      rows={3}
-                      placeholder={`想和 ${companion.name} 说些什么…`}
+                      rows={1}
+                      placeholder="说点什么…"
                       onChange={(event) => setComposer(event.target.value)}
                       onKeyDown={(event) => {
                         if (
@@ -736,9 +692,6 @@ export default function App() {
                       }}
                     />
                     <div className="composer-bottom">
-                      <span>
-                        Enter 发送 <span>·</span> Shift + Enter 换行
-                      </span>
                       {app.busy.chat ? (
                         <button
                           type="button"
@@ -760,17 +713,6 @@ export default function App() {
                       )}
                     </div>
                   </form>
-                  <footer className="chat-footnote">
-                    AI 的回复可能不准确，请照顾好真实的自己。
-                    {app.lastMetrics && (
-                      <span
-                        title={`整条回复用时 ${(app.lastMetrics.totalMs / 1000).toFixed(1)} 秒`}
-                      >
-                        <Zap size={10} />
-                        首字 {(app.lastMetrics.firstTokenMs / 1000).toFixed(1)}s
-                      </span>
-                    )}
-                  </footer>
                 </>
               ) : (
                 <div className="no-conversation">
@@ -780,7 +722,7 @@ export default function App() {
                     </span>
                     <span className="empty-spark">✧</span>
                   </div>
-                  <span className="welcome-eyebrow">YOUR LITTLE SPACE OF CONNECTION</span>
+
                   <h2>有些话，想说给懂你的人听</h2>
                   <p>
                     创建一位有自己个性的 AI 朋友，
@@ -906,13 +848,6 @@ export default function App() {
                       </span>
                       <div>
                         <h2>模型与连接</h2>
-                        <p>
-                          {isTokenPlan
-                            ? '使用小米 MiMo Token Plan 专用密钥，按已开通的套餐额度使用。'
-                            : isMiMo
-                              ? '使用小米 MiMo 通用 API 密钥，按实际 token 用量计费。'
-                              : '使用硅基流动 API 密钥，按供应商实际用量计费。'}
-                        </p>
                       </div>
                     </div>
                     <fieldset className="provider-fieldset">
@@ -989,7 +924,7 @@ export default function App() {
                             </option>
                           ))}
                         </select>
-                        <small>请与小米控制台的账户类型和区域保持一致；切换会清空当前密钥。</small>
+                        <small>切换账户类型会清空密钥。</small>
                       </label>
                     )}
                     <label className="field">
@@ -1027,12 +962,6 @@ export default function App() {
                           {showKey ? <EyeOff size={17} /> : <Eye size={17} />}
                         </button>
                       </div>
-                      {isMiMo && (
-                        <small>
-                          Token Plan 一般限编程场景；本应用仅在获小米授权时使用，普通账户请选择按量
-                          API。
-                        </small>
-                      )}
                     </label>
                     <div className="field">
                       <span>
@@ -1042,13 +971,6 @@ export default function App() {
                         <ShieldCheck size={15} />
                         <code>{settings.baseUrl || provider.url || '正在核验官方接口'}</code>
                       </div>
-                      <small>
-                        {isTokenPlan
-                          ? '使用所选区域的官方 Token Plan 专用接口。密钥须与账户类型一致。'
-                          : isMiMo
-                            ? '使用小米 MiMo 官方通用 API 接口，地址由服务商固定。'
-                            : '使用所选硅基流动站点的官方接口，地址由服务商固定。'}
-                      </small>
                     </div>
                     <div className="model-field">
                       <label className="field">
@@ -1108,36 +1030,10 @@ export default function App() {
                         <small>仅支持当前服务商可用的模型；建议先读取模型列表确认。</small>
                       </label>
                     )}
-                    <p className="model-cost-note">
-                      <Zap size={12} />
-                      {isTokenPlan
-                        ? '套餐、可用模型和剩余额度请以小米 MiMo 控制台为准。'
-                        : isMiMo
-                          ? 'MiMo v2.6 Flash 参考价：输入 ¥1 / 输出 ¥2 每百万 token。'
-                          : settings.provider === 'siliconflow-international'
-                            ? '国际站 Qwen3.5-9B 参考价：输入 $0.10 / 输出 $0.15 每百万 token。'
-                            : '国内站模型按实际 token 用量计费，请在控制台查看所选模型价格。'}
-                      <a
-                        href={
-                          isMiMo
-                            ? isTokenPlan
-                              ? providerConsole
-                              : 'https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go'
-                            : settings.provider === 'siliconflow-international'
-                              ? 'https://www.siliconflow.com/pricing'
-                              : providerConsole
-                        }
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {isTokenPlan ? '查看套餐' : '价格以官方为准'}
-                        <ExternalLink size={11} />
-                      </a>
-                    </p>
                     <div className="connection-actions">
                       <span>
                         <ShieldCheck size={14} />
-                        密钥不会包含在聊天数据导出中
+                        密钥仅在此设备加密保存
                       </span>
                       <button
                         type="button"
@@ -1166,7 +1062,7 @@ export default function App() {
                       </span>
                       <div>
                         <h2>聊天偏好</h2>
-                        <p>聊天时会将对象设定和必要对话通过本机服务转发给所选模型服务商。</p>
+                        <p>对象设定与近期对话会发送给所选模型。</p>
                       </div>
                     </div>
                     <div className="preference-row">
@@ -1221,61 +1117,28 @@ export default function App() {
                       <ShieldCheck size={19} />
                     </span>
                     <div>
-                      <h2>你的数据</h2>
-                      <p>
-                        对象设定与聊天记录存储在当前设备；换设备不会自动同步，清除应用数据可能丢失，请定期备份。
-                      </p>
+                      <h2>本机数据</h2>
+                      <p>对象与聊天记录保存在此设备。</p>
                     </div>
                   </div>
-                  <div className="data-actions">
-                    <button className="button secondary" onClick={app.exportData}>
-                      <Download size={15} />
-                      导出备份
-                    </button>
-                    <button className="button secondary" onClick={() => fileInput.current?.click()}>
-                      <Upload size={15} />
-                      导入备份
-                    </button>
-                    <input
-                      ref={fileInput}
-                      type="file"
-                      accept="application/json,.json"
-                      className="sr-only"
-                      aria-label="导入聊天数据文件"
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) {
-                          setConfirmation({
-                            title: '导入这份备份？',
-                            description:
-                              '导入后会替换当前设备的对象设定和聊天记录，建议先导出当前数据。API 设置不会被替换。',
-                            label: '导入并替换',
-                            action: () => void app.importData(file),
-                          });
-                        }
-                        event.target.value = '';
-                      }}
-                    />
-                    <button
-                      className="text-button danger-text"
-                      disabled={app.busy.chat}
-                      onClick={() =>
-                        setConfirmation({
-                          title: '清除所有数据？',
-                          description:
-                            '所有对象、聊天记录和 API 设置将从此设备删除。此操作无法恢复，请先导出需要的备份。',
-                          label: '清除所有数据',
-                          action: () => {
-                            void app.resetData();
-                            setMobileChat(false);
-                          },
-                        })
-                      }
-                    >
-                      <Trash2 size={14} />
-                      清除所有数据
-                    </button>
-                  </div>
+                  <button
+                    className="text-button danger-text"
+                    disabled={app.busy.chat}
+                    onClick={() =>
+                      setConfirmation({
+                        title: '清除所有数据？',
+                        description: '所有对象、聊天记录和 API 设置将从此设备删除，无法恢复。',
+                        label: '清除所有数据',
+                        action: () => {
+                          void app.resetData();
+                          setMobileChat(false);
+                        },
+                      })
+                    }
+                  >
+                    <Trash2 size={14} />
+                    清除所有数据
+                  </button>
                 </section>
               </div>
               <aside className="settings-help">
@@ -1283,49 +1146,49 @@ export default function App() {
                   <span className="help-card-icon">
                     <Sparkles size={23} />
                   </span>
-                  <span className="eyebrow">HELLO, REAL CONVERSATIONS</span>
+
                   <h2>只差一把小钥匙</h2>
-                  <p>第一次使用？花一分钟连接 API，开启真正属于你的对话。</p>
+                  <p>任选一种服务，使用你自己的密钥。</p>
+                  <div className="provider-help-links">
+                    <a
+                      href="https://platform.xiaomimimo.com/console/api-keys"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      小米 MiMo <ExternalLink size={13} />
+                    </a>
+                    <a
+                      href="https://cloud.siliconflow.cn/account/ak"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      硅基流动 · 国内站 <ExternalLink size={13} />
+                    </a>
+                  </div>
                   <ol className="setup-steps">
                     <li>
                       <span>1</span>
                       <div>
-                        <strong>
-                          {isTokenPlan
-                            ? '准备已授权的 Token Plan'
-                            : isMiMo
-                              ? '创建小米 MiMo 账号'
-                              : '创建硅基流动账号'}
-                        </strong>
+                        <strong>获取 {provider.name} 密钥</strong>
                         <p>
                           {isTokenPlan
-                            ? '在小米 MiMo 平台确认授权、套餐和服务区域。'
-                            : isMiMo
-                              ? '前往小米 MiMo 平台，开通通用 API 服务。'
-                              : `前往${provider.name}控制台注册。`}
+                            ? '使用所选区域的 Token Plan 专用密钥。'
+                            : '在服务商控制台创建 API 密钥。'}
                         </p>
                       </div>
                     </li>
                     <li>
                       <span>2</span>
                       <div>
-                        <strong>
-                          {isTokenPlan ? '复制 Token Plan 专用密钥' : '创建并复制 API 密钥'}
-                        </strong>
-                        <p>
-                          {isTokenPlan
-                            ? '个人账户使用 tp- 密钥，团队账户使用 ttp- 密钥。'
-                            : isMiMo
-                              ? '创建普通 API 密钥（sk-…），确认账户余额。'
-                              : '在控制台的「API 密钥」中创建。'}
-                        </p>
+                        <strong>选择模型</strong>
+                        <p>粘贴密钥后，点击“读取模型”。</p>
                       </div>
                     </li>
                     <li>
                       <span>3</span>
                       <div>
-                        <strong>粘贴密钥，测试并保存</strong>
-                        <p>选择模型，回到聊天说声你好。</p>
+                        <strong>测试并保存</strong>
+                        <p>回到聊天，就可以开始了。</p>
                       </div>
                     </li>
                   </ol>
@@ -1348,18 +1211,9 @@ export default function App() {
                     </a>
                   )}
                 </section>
-                <section className="quiet-help-card">
-                  <Leaf size={19} />
-                  <h3>快一点，也暖一点</h3>
-                  <p>
-                    {isTokenPlan
-                      ? '使用套餐支持的模型，以流式方式逐字显示。长对话只携带近期内容，减少等待和额度消耗。'
-                      : '推荐较小的对话模型，以流式方式逐字显示。长对话只携带近期内容，减少等待和费用。'}
-                  </p>
-                </section>
                 <div className="settings-version">
                   <Heart size={12} />
-                  知心 AI Lover <span>v0.1.0</span>
+                  知心 AI Lover <span>v0.2.0</span>
                 </div>
               </aside>
             </div>
@@ -1442,8 +1296,12 @@ export default function App() {
               </div>
             </dl>
             <div className="profile-background">
-              <span>相处的小约定</span>
-              <p>{profile.background || '还没有特别的约定。在相处中，慢慢了解彼此。'}</p>
+              <span>对 TA 的描述</span>
+              <p>{profile.background || '未填写'}</p>
+            </div>
+            <div className="profile-background">
+              <span>对我的描述</span>
+              <p>{profile.userBackground || '未填写'}</p>
             </div>
           </div>
           <footer className="dialog-footer profile-footer">

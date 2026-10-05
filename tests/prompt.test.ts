@@ -50,6 +50,48 @@ describe('independent companion configuration', () => {
     expect(prompt).toContain('不编造共同经历');
   });
 
+  it('assigns companion and user education and interests to distinct profile sections', () => {
+    const prompt = buildSystemPrompt({
+      ...companion,
+      background: '我是文学硕士，喜欢爵士乐。',
+      userBackground: '我是设计本科生，喜欢猫。',
+    });
+    const companionSection = prompt.split('【陪伴对象资料：')[1].split('【用户资料：')[0];
+    const userSection = prompt.split('【用户资料：')[1];
+    expect(companionSection).toContain('文学硕士');
+    expect(companionSection).not.toContain('设计本科生');
+    expect(userSection).toContain('设计本科生');
+    expect(userSection).not.toContain('文学硕士');
+    expect(prompt).toContain('回复中的“我”始终指你扮演的 "小雨"');
+    expect(prompt).toContain('“你”指正在和你聊天的用户');
+    expect(prompt).toContain('直接以第一人称与用户相处');
+  });
+
+  it('preserves the current identity when previous assistant replies confused the roles', () => {
+    const history = [
+      { role: 'user' as const, content: '你喜欢什么音乐？' },
+      { role: 'assistant' as const, content: '看来你喜欢爵士乐，你可以和小雨聊聊。' },
+      { role: 'user' as const, content: '我问的是你呀。' },
+    ];
+    const messages = buildModelMessages({ ...companion, background: '喜欢爵士乐' }, history);
+    expect(messages[0].content).toContain('历史 assistant 回复仅用于对话连贯');
+    expect(messages[0].content).toContain('不要重复或沿用错误');
+    expect(messages[0].content).toContain('空白表示未提供，不得从对象资料中补全');
+    expect(messages.slice(1)).toEqual(history);
+    expect(history[1].content).toBe('看来你喜欢爵士乐，你可以和小雨聊聊。');
+  });
+
+  it('accepts legacy companion profiles without reassigning their background to the user', () => {
+    const { userBackground: _removed, ...legacy } = {
+      ...companion,
+      background: '博士，喜欢天文学',
+    };
+    const migrated = companionSchema.parse(legacy);
+    expect(migrated.background).toBe('博士，喜欢天文学');
+    expect(migrated.userBackground).toBe('');
+    expect(buildSystemPrompt(migrated)).toContain('"userBackground":""');
+  });
+
   it('rejects unknown personality IDs and unbounded background', () => {
     expect(companionSchema.safeParse({ ...companion, personalityIds: ['invented'] }).success).toBe(
       false,
@@ -60,6 +102,9 @@ describe('independent companion configuration', () => {
     expect(companionSchema.safeParse({ ...companion, background: '字'.repeat(601) }).success).toBe(
       false,
     );
+    expect(
+      companionSchema.safeParse({ ...companion, userBackground: '字'.repeat(601) }).success,
+    ).toBe(false);
     expect(
       companionSchema.safeParse({ ...companion, gender: 'animal', animalType: '' }).success,
     ).toBe(false);
@@ -94,8 +139,8 @@ describe('bounded context without server history', () => {
 
   it('validates message roles and finite settings while allowing repeated user turns', () => {
     const settings = {
-      provider: 'siliconflow-international',
-      baseUrl: 'https://api.siliconflow.com/v1',
+      provider: 'siliconflow',
+      baseUrl: 'https://api.siliconflow.cn/v1',
       apiKey: 'test-key',
       model: 'Qwen/Qwen3.5-9B',
       temperature: 0.8,

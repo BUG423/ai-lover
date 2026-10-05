@@ -1123,10 +1123,44 @@ a svg {
 .composer > textarea:focus-visible {
   outline: none;
 }
-.composer-bottom {
+.chat-panel {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.chat-panel > .composer {
+  margin-bottom: 14px;
+}
+.provider-help-links {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+}
+.provider-help-links a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #dce6d2;
+  border-radius: 8px;
+  color: #58785a;
+  font-size: 12px;
+}
+.chat-panel .composer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.chat-panel .composer > textarea {
+  min-height: 40px;
+  max-height: 120px;
+  padding: 8px 2px;
+}
+.composer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 .composer-bottom > span {
   font-size: 8px;

@@ -61,7 +61,20 @@ describe('browser stream decoding', () => {
     expect(canceled).toBe(true);
   });
 });
-describe('backup and profile validation', () => {
+describe('local data and profile validation', () => {
+  it('migrates a legacy description as companion facts and defaults user facts to empty', () => {
+    const { userBackground: _removed, ...legacy } = {
+      ...DEFAULT_DRAFT,
+      name: '小雨',
+      background: '硕士，喜欢骑行',
+    };
+    const result = draftSchema.parse(legacy);
+    expect(result.background).toBe('硕士，喜欢骑行');
+    expect(result.userBackground).toBe('');
+    expect(
+      draftSchema.parse({ ...result, userBackground: '本科生，喜欢唱歌' }).userBackground,
+    ).toBe('本科生，喜欢唱歌');
+  });
   it('requires animal type without imposing a personality on gender', () => {
     expect(
       draftSchema.safeParse({ ...DEFAULT_DRAFT, name: '阿狸', gender: 'animal' }).success,
