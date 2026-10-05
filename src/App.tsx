@@ -1151,7 +1151,7 @@ export default function App() {
                   <p>任选一种服务，使用你自己的密钥。</p>
                   <div className="provider-help-links">
                     <a
-                      href="https://platform.xiaomimimo.com/console/api-keys"
+                      href={isMiMo ? providerConsole : PROVIDERS[0].console}
                       target="_blank"
                       rel="noreferrer"
                     >

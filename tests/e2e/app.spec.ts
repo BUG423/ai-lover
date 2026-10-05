@@ -13,6 +13,10 @@ test('restricts providers and isolates credentials, models and account types', a
   await navigate(page, '设置');
   const providers = page.getByRole('group', { name: '模型服务商' });
   await expect(providers.getByRole('button')).toHaveCount(2);
+  await expect(page.locator('.provider-help-links a').first()).toHaveAttribute(
+    'href',
+    'https://platform.xiaomimimo.com/console/plan-manage',
+  );
   await expect(providers.getByRole('button', { name: /小米 MiMo/ })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -35,6 +39,10 @@ test('restricts providers and isolates credentials, models and account types', a
   await providers.getByRole('button', { name: /小米 MiMo/ }).click();
   await expect(key).toHaveValue('');
   await page.getByRole('combobox', { name: /MiMo/ }).selectOption('https://api.xiaomimimo.com/v1');
+  await expect(page.locator('.provider-help-links a').first()).toHaveAttribute(
+    'href',
+    'https://platform.xiaomimimo.com/console/api-keys',
+  );
   await key.fill(KEY);
   await page.getByRole('button', { name: '读取模型', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('套餐专用地址');
