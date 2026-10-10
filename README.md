@@ -1,7 +1,7 @@
 # 💬 知心 · AI Lover
 
-[![Release](https://img.shields.io/github/v/release/BUG423/apps-ai-lover?display_name=tag&color=brightgreen)](https://github.com/BUG423/apps-ai-lover/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/BUG423/apps-ai-lover/release.yml?label=build)](https://github.com/BUG423/apps-ai-lover/actions)
+[![Release](https://img.shields.io/github/v/release/BUG423/app-ai-lover?display_name=tag&color=brightgreen)](https://github.com/BUG423/app-ai-lover/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/BUG423/app-ai-lover/release.yml?label=build)](https://github.com/BUG423/app-ai-lover/actions)
 [![Electron](https://img.shields.io/badge/Electron-Windows_x64-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
 [![Android](https://img.shields.io/badge/Android-Native_App-3DDC84?logo=android&logoColor=white)](https://developer.android.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -17,7 +17,7 @@
 
 ## 📦 下载与安装
 
-前往 **[GitHub Releases 最新发布页](https://github.com/BUG423/apps-ai-lover/releases/latest)** 获取客户端产物：
+前往 **[GitHub Releases 最新发布页](https://github.com/BUG423/app-ai-lover/releases/latest)** 获取客户端产物：
 
 | 平台 | 交付文件 | 说明 |
 |---|---|---|
@@ -67,8 +67,8 @@
 
 ```bash
 # 克隆仓库
-git clone git@github.com:BUG423/apps-ai-lover.git
-cd apps-ai-lover
+git clone git@github.com:BUG423/app-ai-lover.git
+cd app-ai-lover
 
 # 安装工程依赖
 npm ci
